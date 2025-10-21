@@ -496,7 +496,16 @@ class MainWindow(Gtk.Window):
 		apt_upgrades = [f'{row[1]}:{row[4]}={row[2]}' for row in self.list_upgrade if row[0]]
 
 		if not apt_installs and not apt_upgrades:
-			self.destroy()
+			# Show MessageDialog
+			dialog = Gtk.MessageDialog(
+				parent=self,
+				flags=0,
+				message_type=Gtk.MessageType.INFO,
+				buttons=Gtk.ButtonsType.OK,
+				text="Nothing to do."
+			)
+			dialog.run()
+			dialog.destroy()
 			return
 
 		InstallerWindow(apt_installs, apt_upgrades)
@@ -650,6 +659,9 @@ class InstallerWindow(Gtk.Window):
 		self.label.set_text(text.strip())
 		end_iter = self.textbuffer.get_end_iter()
 		self.textbuffer.insert(end_iter, text)
+		# Scroll to bottom
+		mark = self.textbuffer.create_mark(None, self.textbuffer.get_end_iter(), False)
+		self.textview.scroll_to_mark(mark, 0.0, True, 0.0, 1.0)
 
 	def run_commands(self):
 		global user_config
@@ -666,7 +678,7 @@ class InstallerWindow(Gtk.Window):
 
 		# Run install command
 		self.proc = subprocess.Popen(cmd,
-   			stdout=subprocess.PIPE,
+			stdout=subprocess.PIPE,
 			stderr=subprocess.STDOUT,
 			text=True, bufsize=1
 		)
@@ -688,9 +700,7 @@ class InstallerWindow(Gtk.Window):
 class UpdaterWindow(Gtk.Window):
 	def __init__(self):
 		super().__init__(title="Checking updates")
-		self.set_resizable(False)
 		self.set_default_size(480, 0)
-		self.set_size_request(480, -1)
 		self.set_border_width(16)
 		self.set_position(Gtk.WindowPosition.CENTER)
 
@@ -702,8 +712,8 @@ class UpdaterWindow(Gtk.Window):
 		self.label.set_xalign(0)
 		self.label.set_line_wrap(False)
 		self.label.set_ellipsize(Pango.EllipsizeMode.END)
-		self.label.set_hexpand(False)
-		vbox.pack_start(self.label, False, False, 0)
+		self.label.set_hexpand(True)
+		vbox.pack_start(self.label, False, True, 0)
 
 		# Progressbar
 		self.progressbar = Gtk.ProgressBar()
@@ -711,23 +721,59 @@ class UpdaterWindow(Gtk.Window):
 		self.progressbar.pulse()
 		vbox.pack_start(self.progressbar, False, True, 0)
 
-		# Start worker thread
-		self.command = ["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "update", "-y"]
-		threading.Thread(target=self.run_command, daemon=True).start()
+		# Expandable log area
+		expander = Gtk.Expander(label="Show details")
+		expander.set_hexpand(True)
+		expander.set_vexpand(True)
+		vbox.pack_start(expander, True, True, 0)
+
+		scrolled_window = Gtk.ScrolledWindow()
+		scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+		scrolled_window.set_min_content_height(150)
+		scrolled_window.set_hexpand(True)
+		scrolled_window.set_vexpand(True)
+		expander.add(scrolled_window)
+
+		self.textview = Gtk.TextView()
+		self.textview.set_editable(False)
+		self.textview.set_wrap_mode(Gtk.WrapMode.NONE)
+		self.textview.set_hexpand(True)
+		self.textview.set_vexpand(True)
+		scrolled_window.add(self.textview)
 
 		self.sigid_destroy = self.connect("destroy", self.on_destroy)
 		self.show_all()
 
+		# Start worker thread
+		self.textbuffer = self.textview.get_buffer()
+		threading.Thread(target=self.run_command, daemon=True).start()
+
+	def update_log(self, text):
+		self.label.set_text(text.strip())
+		end_iter = self.textbuffer.get_end_iter()
+		self.textbuffer.insert(end_iter, text)
+		# Scroll to bottom
+		mark = self.textbuffer.create_mark(None, self.textbuffer.get_end_iter(), False)
+		self.textview.scroll_to_mark(mark, 0.0, True, 0.0, 1.0)
+
 	def run_command(self):
 		self.proc = subprocess.Popen(
-			self.command, stdout=subprocess.PIPE,
-			stderr=subprocess.STDOUT, text=True, bufsize=1
+			["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "update", "-y"],
+			stdout=subprocess.PIPE,
+			stderr=subprocess.STDOUT,
+			text=True, bufsize=1
 		)
 
 		for line in self.proc.stdout:
 			GLib.idle_add(self.progressbar.pulse)
-			line = line.strip()
-			if line: GLib.idle_add(self.label.set_text, line)
+			if line: GLib.idle_add(self.update_log, line)
+
+		# Check return code
+		self.proc.wait()
+		if self.proc.returncode != 0:
+			GLib.idle_add(self.progressbar.set_fraction, 1.0)
+			GLib.idle_add(self.label.set_text, "Error.")
+			return
 
 		GLib.idle_add(self.progressbar.set_fraction, 1.0)
 		GLib.idle_add(self.label.set_text, "Done.")

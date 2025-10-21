@@ -11,6 +11,10 @@ Visual APT Manager is a simple GUI for APT package management.
 ### Roadmap
 - Remove packages
 - Manage multiarch settings
+- apt-mark support
+- Install local deb files
+- Actions: autoremove, autoclean, etc.
+- Localization
 
 # Installation
 Download the latest version from [Releases](https://github.com/bruneo32/vapt/releases/latest), and install it.
@@ -23,3 +27,6 @@ There is no building process because it's just python, but you can wrap up the p
 ```sh
 make package
 ```
+
+# License
+- Gartoon Redux Action Icons: https://www.iconarchive.com/show/gartoon-action-icons-by-gartoon-team.1.html

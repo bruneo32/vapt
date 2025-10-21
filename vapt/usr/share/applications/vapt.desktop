@@ -2,9 +2,10 @@
 Name=Visual Apt Manager
 Comment=Visual APT manager
 Exec=/bin/bash -c "pkexec env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY VAPT_CONFIG_PATH=%h/.config/vapt.yml vapt.py"
-Icon=software-update-available
+Icon=gartoon-system-upgrade
 Terminal=false
 Type=Application
 Categories=Utilities;System Tools
 Keywords=vapt;visual;apt;package;manager;
-StartupNotify=true
+StartupNotify=false
+StartupWMClass=Vapt.py
