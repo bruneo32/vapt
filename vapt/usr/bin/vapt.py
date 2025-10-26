@@ -79,7 +79,7 @@ class MainWindow(Gtk.Window):
 		button.connect("clicked", lambda button: self.destroy())
 		btn_box.pack_start(button, False, False, 0)
 
-		button = Gtk.Button(label="Install")
+		button = Gtk.Button(label="Continue")
 		button.set_halign(Gtk.Align.END)
 		button.connect("clicked", self.do_everything)
 		btn_box.pack_start(button, False, False, 0)
@@ -567,6 +567,7 @@ class MainWindow(Gtk.Window):
 	def do_everything(self, widget):
 		apt_installs = [f'{row[1]}:{row[3]}={row[2]}' for row in self.list_install if row[0]]
 		apt_upgrades = [f'{row[1]}:{row[4]}={row[2]}' for row in self.list_upgrade if row[0]]
+		apt_removes  = [f'{row[1]}:{row[4]}={row[2]}' for row in self.list_remove if row[0]]
 
 		if not apt_installs and not apt_upgrades:
 			# Show MessageDialog
@@ -579,6 +580,21 @@ class MainWindow(Gtk.Window):
 			)
 			dialog.run()
 			dialog.destroy()
+			return
+
+		# Show confirmation dialog
+		dialog = Gtk.MessageDialog(
+			parent=self,
+			flags=0,
+			message_type=Gtk.MessageType.INFO,
+			buttons=Gtk.ButtonsType.OK_CANCEL,
+			text="Summary:\n- Remove %d packages\n- Install %d packages\n- Upgrade %d packages" \
+				% (len(apt_removes), len(apt_installs), len(apt_upgrades))
+		)
+		response = dialog.run()
+		dialog.destroy()
+
+		if response != Gtk.ResponseType.OK:
 			return
 
 		InstallerWindow(apt_installs, apt_upgrades)
