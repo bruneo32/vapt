@@ -177,6 +177,7 @@ class MainWindow(Gtk.Window):
 		# Bottom: List
 		self.list_install = Gtk.ListStore(bool, str, str, str)
 		treeview = Gtk.TreeView(model=self.list_install)
+		treeview.set_search_column(1)
 
 		render_toggle = Gtk.CellRendererToggle()
 		render_toggle.connect("toggled", self.on_toggle_install)
@@ -213,6 +214,7 @@ class MainWindow(Gtk.Window):
 		self.get_apt_upgradables()
 
 		treeview = Gtk.TreeView(model=self.list_upgrade)
+		treeview.set_search_column(1)
 
 		render_toggle = Gtk.CellRendererToggle()
 		render_toggle.connect("toggled", self.on_toggle_upgrade)
@@ -242,7 +244,40 @@ class MainWindow(Gtk.Window):
 		notebook.append_page(upgrade_scroll, Gtk.Label(label="Upgrade"))
 
 		# -----------------------
-		# Tab 3: Settings
+		# Tab 3: Remove
+		# -----------------------
+		self.list_remove = Gtk.ListStore(bool, str, str, str)
+		self.get_apt_installed()
+
+		treeview = Gtk.TreeView(model=self.list_remove)
+		treeview.set_search_column(1)
+
+		render_toggle = Gtk.CellRendererToggle()
+		render_toggle.connect("toggled", self.on_toggle_remove)
+		column = Gtk.TreeViewColumn("Remove", render_toggle, active=0)
+		column.set_sort_column_id(0)
+		treeview.append_column(column)
+
+		column = Gtk.TreeViewColumn("Package Name", Gtk.CellRendererText(), text=1)
+		column.set_sort_column_id(1)
+		treeview.append_column(column)
+		column = Gtk.TreeViewColumn("Installed Version", Gtk.CellRendererText(), text=2)
+		column.set_sort_column_id(2)
+		treeview.append_column(column)
+		column = Gtk.TreeViewColumn("Architecture", Gtk.CellRendererText(), text=3)
+		column.set_sort_column_id(3)
+		treeview.append_column(column)
+
+		treeview.connect("button-press-event", self.on_context_upgrade)
+
+		upgrade_scroll = Gtk.ScrolledWindow()
+		upgrade_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+		upgrade_scroll.add(treeview)
+
+		notebook.append_page(upgrade_scroll, Gtk.Label(label="Remove"))
+
+		# -----------------------
+		# Tab 4: Settings
 		# -----------------------
 		settings_box = Gtk.VBox()
 		settings_box.set_border_width(16)
@@ -311,6 +346,9 @@ class MainWindow(Gtk.Window):
 
 	def on_toggle_upgrade(self, widget, path):
 		self.list_upgrade[path][0] = not self.list_upgrade[path][0]
+
+	def on_toggle_remove(self, widget, path):
+		self.list_remove[path][0] = not self.list_remove[path][0]
 
 	def on_context_install(self, widget, event):
 		if event.type == Gdk.EventType.BUTTON_PRESS and event.button == 3:  # Right-click
@@ -487,6 +525,41 @@ class MainWindow(Gtk.Window):
 				if ver_cad and ver_ins and arch:
 					self.list_upgrade.append([user_config["editor"]["upgrades_selected_by_default"],
 											 pkg, ver_cad, ver_ins, arch])
+
+		# Run worker
+		threading.Thread(target=worker_, daemon=True).start()
+
+	def get_apt_installed(self):
+		def worker_():
+			proc = subprocess.Popen(
+				["apt", "list", "--installed"],
+				stdout=subprocess.PIPE,
+				stderr=subprocess.DEVNULL,
+				text=True
+			)
+			out, _ = proc.communicate()  # waits until process finishes, captures output
+
+			# Clear old rows on main thread
+			self.list_remove.clear()
+
+			lines = out.splitlines()
+			if not lines: return
+
+			# Skip "Listing..." header if present
+			if lines[0].lower().startswith("listing"):
+				lines = lines[1:]
+
+			for line in lines:
+				pkgcol = line.strip().split("/", 1)
+				pkg = pkgcol[0].strip()
+
+				cols = pkgcol[1].strip().split(" ")
+
+				ver_ins = cols[1].strip() if len(cols) >= 1 else None
+				arch    = cols[2].strip() if len(cols) >= 2 else None
+
+				if ver_ins and arch:
+					self.list_remove.append([False, pkg, ver_ins, arch])
 
 		# Run worker
 		threading.Thread(target=worker_, daemon=True).start()

@@ -1,10 +1,13 @@
 
-all: package check
+all: test
 
-.PHONY: clean package check release
+.PHONY: clean test package check release
 
 clean:
 	rm -rf dist vapt.deb
+
+test:
+	sudo VAPT_CONFIG_PATH=${HOME}/.config/vapt.yml vapt/usr/bin/vapt.py
 
 package:
 	dpkg-deb -Zgzip --build vapt vapt.deb
