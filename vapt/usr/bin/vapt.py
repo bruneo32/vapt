@@ -567,9 +567,9 @@ class MainWindow(Gtk.Window):
 	def do_everything(self, widget):
 		apt_installs = [f'{row[1]}:{row[3]}={row[2]}' for row in self.list_install if row[0]]
 		apt_upgrades = [f'{row[1]}:{row[4]}={row[2]}' for row in self.list_upgrade if row[0]]
-		apt_removes  = [f'{row[1]}:{row[4]}={row[2]}' for row in self.list_remove if row[0]]
+		apt_removes  = [f'{row[1]}:{row[3]}={row[2]}' for row in self.list_remove if row[0]]
 
-		if not apt_installs and not apt_upgrades:
+		if not apt_installs and not apt_upgrades and not apt_removes:
 			# Show MessageDialog
 			dialog = Gtk.MessageDialog(
 				parent=self,
@@ -597,7 +597,7 @@ class MainWindow(Gtk.Window):
 		if response != Gtk.ResponseType.OK:
 			return
 
-		InstallerWindow(apt_installs, apt_upgrades)
+		InstallerWindow(apt_installs, apt_upgrades, apt_removes)
 		GLib.idle_add(self.disconnect, self.sigid_destroy)
 		GLib.idle_add(self.destroy)
 
@@ -688,7 +688,7 @@ class PackageInfoWindow(Gtk.Window):
 		self.show_all()
 
 class InstallerWindow(Gtk.Window):
-	def __init__(self, list_installs, list_upgrades):
+	def __init__(self, list_installs, list_upgrades, list_removes):
 		global user_config_path
 		global user_config
 
@@ -699,6 +699,7 @@ class InstallerWindow(Gtk.Window):
 
 		self.list_installs = list_installs
 		self.list_upgrades = list_upgrades
+		self.list_removes = list_removes
 
 		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
 		self.add(vbox)
@@ -755,30 +756,50 @@ class InstallerWindow(Gtk.Window):
 	def run_commands(self):
 		global user_config
 
-		# Build command
-		cmd = ["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y"]
+		# Step (1) Remove
+		if self.list_removes:
+			# Build command
+			cmd = ["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "remove", "-y"]
+			cmd.extend(self.list_removes)
 
-		if user_config['apt_install']['fix_missing']: cmd.append("--fix-missing")
-		if user_config['apt_install']['fix_broken']:  cmd.append("--fix-broken")
-		if user_config['apt_install']['fix_policy']:  cmd.append("--fix-policy")
+			# Run install command
+			self.proc = subprocess.Popen(cmd,
+				stdout=subprocess.PIPE,
+				stderr=subprocess.STDOUT,
+				text=True, bufsize=1
+			)
+			for line in self.proc.stdout:
+				GLib.idle_add(self.progressbar.pulse)
+				if line: GLib.idle_add(self.update_log, line)
 
-		if self.list_installs: cmd.extend(self.list_installs)
-		if self.list_upgrades: cmd.extend(self.list_upgrades)
+			self.proc.wait()
 
-		# Run install command
-		self.proc = subprocess.Popen(cmd,
-			stdout=subprocess.PIPE,
-			stderr=subprocess.STDOUT,
-			text=True, bufsize=1
-		)
-		for line in self.proc.stdout:
-			GLib.idle_add(self.progressbar.pulse)
-			if line: GLib.idle_add(self.update_log, line)
+		# Step (2) Install & Upgrade
+		if self.list_installs or self.list_upgrades:
+			# Build command
+			cmd = ["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y"]
 
-		self.proc.wait()
+			if user_config['apt_install']['fix_missing']: cmd.append("--fix-missing")
+			if user_config['apt_install']['fix_broken']:  cmd.append("--fix-broken")
+			if user_config['apt_install']['fix_policy']:  cmd.append("--fix-policy")
+
+			if self.list_installs: cmd.extend(self.list_installs)
+			if self.list_upgrades: cmd.extend(self.list_upgrades)
+
+			# Run install command
+			self.proc = subprocess.Popen(cmd,
+				stdout=subprocess.PIPE,
+				stderr=subprocess.STDOUT,
+				text=True, bufsize=1
+			)
+			for line in self.proc.stdout:
+				GLib.idle_add(self.progressbar.pulse)
+				if line: GLib.idle_add(self.update_log, line)
+
+			self.proc.wait()
+
 		GLib.idle_add(self.progressbar.set_fraction, 1.0)
 		GLib.idle_add(self.label.set_text, "Done.")
-
 		# GLib.idle_add(self.destroy)
 
 	def on_destroy(self, button):
