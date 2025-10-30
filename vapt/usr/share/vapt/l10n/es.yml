@@ -1,0 +1,36 @@
+locales: ["es"]
+strings:
+  str_quit: "Salir"
+  str_continue: "Continuar"
+  str_show_details: "Ver detalles"
+  str_done: "Hecho"
+  str_error: "Error"
+
+  str_install: "Instalar"
+  str_upgrade: "Actualizar"
+  str_remove: "Eliminar"
+  str_settings: "Configuración"
+  str_search_package_by_name: "Buscar paquete por nombre"
+  str_pkg_name: "Nombre del paquete"
+  str_pkg_candidate_version: "Versión candidata"
+  str_pkg_installed_version: "Versión instalada"
+  str_pkg_architecture: "Arquitectura"
+
+  str_show_pkg_info: "Ver información del paquete"
+  str_show_pkg_info_raw: "Ver información del paquete (sin procesar)"
+  str_remove_from_list: "Eliminar de la lista"
+
+  str_form_field: "Campo"
+  str_form_data: "Datos"
+
+  str_updater_title: "Buscando actualizaciones"
+  str_pkginfo_title: "Informacion del paquete: %s"
+  str_installer_title: "Instalando paquetes"
+
+  str_settings_editor_options: "Opciones de editor"
+  str_settings_apt_install_options: "Opciones de APT-Install"
+  str_setting_package_list_autocompletion: "Activar autocompletado de la lista de paquetes"
+  str_setting_select_upgrades_on_startup: "Seleccionar todas las actualizaciones al inicio"
+
+  str_nothing_to_do: "Nada por hacer"
+  str_summary_of_operations: "Resumen:\n- Borrar %d paquetes\n- Instalar %d paquetes\n- Actualizar %d paquetes"

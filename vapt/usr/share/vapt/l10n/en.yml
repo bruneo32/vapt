@@ -1,0 +1,36 @@
+locales: ["C", "en"]
+strings:
+  str_quit: "Quit"
+  str_continue: "Continue"
+  str_show_details: "Show details"
+  str_done: "Done"
+  str_error: "Error"
+
+  str_install: "Install"
+  str_upgrade: "Upgrade"
+  str_remove: "Remove"
+  str_settings: "Settings"
+  str_search_package_by_name: "Search package by name"
+  str_pkg_name: "Package name"
+  str_pkg_candidate_version: "Candidate version"
+  str_pkg_installed_version: "Installed version"
+  str_pkg_architecture: "Architecture"
+
+  str_show_pkg_info: "Show package info"
+  str_show_pkg_info_raw: "Show package info (raw)"
+  str_remove_from_list: "Remove from list"
+
+  str_form_field: "Field"
+  str_form_data: "Data"
+
+  str_updater_title: "Checking updates"
+  str_pkginfo_title: "Package info: %s"
+  str_installer_title: "Installing packages"
+
+  str_settings_editor_options: "Editor options"
+  str_settings_apt_install_options: "APT-Install options"
+  str_setting_package_list_autocompletion: "Enable package list autocompletion"
+  str_setting_select_upgrades_on_startup: "Select all upgrades on startup"
+
+  str_nothing_to_do: "Nothing to do"
+  str_summary_of_operations: "Summary:\n- Remove %d packages\n- Install %d packages\n- Upgrade %d packages"

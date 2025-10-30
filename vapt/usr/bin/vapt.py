@@ -1,9 +1,20 @@
 #!/usr/bin/env python3
-import gi, subprocess, threading, yaml, os.path
+import sys
+import glob
+import os.path
+import yaml
+import threading
+import subprocess
+
+# fmt: off
+import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GLib, Gdk, Pango
+# fmt: on
 
-user_config_path = os.path.expandvars("$VAPT_CONFIG_PATH") or os.path.expandvars("$HOME/.config/vapt.yml")
+# == Configuration == #
+user_config_path = os.path.expandvars("$VAPT_CONFIG_PATH") or \
+	os.path.expandvars("$HOME/.config/vapt.yml")
 os.makedirs(os.path.dirname(user_config_path), exist_ok=True)
 
 user_config = {
@@ -11,12 +22,47 @@ user_config = {
 		'installs_autocompletion': True,
 		'upgrades_selected_by_default': True,
 	},
- 	'apt_install': {
+	'apt_install': {
 		'fix_missing': True,
 		'fix_broken': True,
 		'fix_policy': False
 	}
 }
+
+# == Localization == #
+lang = None
+lang_file_path = None
+master_lang_file_path = "/usr/share/vapt/l10n/en.yml"
+
+l10n_strings = {}
+l10n_strings_master = {}
+
+
+def Localize(key: str) -> str:
+	global l10n_strings
+	global l10n_strings_master
+	if key in l10n_strings:
+		return l10n_strings[key]
+	if key in l10n_strings_master:
+		return l10n_strings_master[key]
+	return key
+
+
+# == APT Util == #
+APT_LANG = ["env", "LANG=C"]
+APT_NONINTERACTIVE = ["env", "DEBIAN_FRONTEND=noninteractive"]
+
+
+def apt_canonicalize_package(name: str, version: str, arch: str) -> str:
+	res = name.strip()
+	if arch:
+		res += ":" + arch.strip()
+	if version:
+		res += "=" + version.strip()
+	return res
+
+# == GTK windows == #
+
 
 class MainWindow(Gtk.Window):
 	def __init__(self):
@@ -45,7 +91,8 @@ class MainWindow(Gtk.Window):
 
 		# Get os pretty name
 		proc = subprocess.Popen(
-			["bash", "-c", "echo \"$(grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '\"')\""],
+			["bash", "-c",
+			 "echo \"$(grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2 | tr -d '\"')\""],
 			stdout=subprocess.PIPE,
 			stderr=subprocess.DEVNULL,
 			text=True
@@ -66,7 +113,7 @@ class MainWindow(Gtk.Window):
 		btn_box.pack_start(label, False, False, 0)
 
 		label = Gtk.Label(label="  " + dpkg_arch)
-		#label.modify_font(Pango.FontDescription("Bold"))
+		# label.modify_font(Pango.FontDescription("Bold"))
 		btn_box.pack_start(label, False, False, 0)
 
 		# expanding spacer pushes following children to the right
@@ -74,12 +121,12 @@ class MainWindow(Gtk.Window):
 		spacer.set_hexpand(True)
 		btn_box.pack_start(spacer, True, True, 0)
 
-		button = Gtk.Button(label="Quit")
+		button = Gtk.Button(label=Localize("str_quit"))
 		button.set_halign(Gtk.Align.END)
 		button.connect("clicked", lambda button: self.destroy())
 		btn_box.pack_start(button, False, False, 0)
 
-		button = Gtk.Button(label="Continue")
+		button = Gtk.Button(label=Localize("str_continue"))
 		button.set_halign(Gtk.Align.END)
 		button.connect("clicked", self.do_everything)
 		btn_box.pack_start(button, False, False, 0)
@@ -94,7 +141,7 @@ class MainWindow(Gtk.Window):
 		# Top: Form
 		self.apt_list_install_autocomplete = Gtk.ListStore(str)
 		entry = Gtk.Entry()
-		entry.set_placeholder_text("Search for a package...")
+		entry.set_placeholder_text(Localize("str_search_package_by_name"))
 		completion = Gtk.EntryCompletion.new()
 		completion.set_model(self.apt_list_install_autocomplete)
 		completion.set_text_column(0)
@@ -105,6 +152,7 @@ class MainWindow(Gtk.Window):
 			if not key:
 				return False
 			key = key.lower().strip()
+
 			terms = key.split()
 			if not terms:
 				return False
@@ -181,31 +229,37 @@ class MainWindow(Gtk.Window):
 
 		render_toggle = Gtk.CellRendererToggle()
 		render_toggle.connect("toggled", self.on_toggle_install)
-		column = Gtk.TreeViewColumn("Install", render_toggle, active=0)
+		column = Gtk.TreeViewColumn(Localize("str_install"),
+									render_toggle, active=0)
 		column.set_sort_column_id(0)
 		treeview.append_column(column)
 
-		column = Gtk.TreeViewColumn("Package Name", Gtk.CellRendererText(), text=1)
+		column = Gtk.TreeViewColumn(Localize("str_pkg_name"),
+									Gtk.CellRendererText(), text=1)
 		column.set_sort_column_id(1)
 		treeview.append_column(column)
-		column = Gtk.TreeViewColumn("Candidate Version", Gtk.CellRendererText(), text=2)
+		column = Gtk.TreeViewColumn(Localize("str_pkg_candidate_version"),
+									Gtk.CellRendererText(), text=2)
 		column.set_sort_column_id(2)
 		treeview.append_column(column)
-		column = Gtk.TreeViewColumn("Architecture", Gtk.CellRendererText(), text=3)
+		column = Gtk.TreeViewColumn(Localize("str_pkg_architecture"),
+									Gtk.CellRendererText(), text=3)
 		column.set_sort_column_id(3)
 		treeview.append_column(column)
 
 		treeview.connect("button-press-event", self.on_context_install)
 
 		install_scroll = Gtk.ScrolledWindow()
-		install_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+		install_scroll.set_policy(Gtk.PolicyType.AUTOMATIC,
+								  Gtk.PolicyType.AUTOMATIC)
 		install_scroll.add(treeview)
 		paned.pack_start(install_scroll, True, True, 0)
 
 		# Put paned into notebook tab
 		tab1_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 		tab1_box.pack_start(paned, True, True, 0)
-		notebook.append_page(tab1_box, Gtk.Label(label="Install"))
+		notebook.append_page(tab1_box, Gtk.Label(
+			label=Localize("str_install")))
 
 		# -----------------------
 		# Tab 2: Upgrade
@@ -218,30 +272,37 @@ class MainWindow(Gtk.Window):
 
 		render_toggle = Gtk.CellRendererToggle()
 		render_toggle.connect("toggled", self.on_toggle_upgrade)
-		column = Gtk.TreeViewColumn("Install", render_toggle, active=0)
+		column = Gtk.TreeViewColumn(Localize("str_install"),
+									render_toggle, active=0)
 		column.set_sort_column_id(0)
 		treeview.append_column(column)
 
-		column = Gtk.TreeViewColumn("Package Name", Gtk.CellRendererText(), text=1)
+		column = Gtk.TreeViewColumn(Localize("str_pkg_name"),
+									Gtk.CellRendererText(), text=1)
 		column.set_sort_column_id(1)
 		treeview.append_column(column)
-		column = Gtk.TreeViewColumn("Candidate Version", Gtk.CellRendererText(), text=2)
+		column = Gtk.TreeViewColumn(Localize("str_pkg_candidate_version"),
+									Gtk.CellRendererText(), text=2)
 		column.set_sort_column_id(2)
 		treeview.append_column(column)
-		column = Gtk.TreeViewColumn("Installed Version", Gtk.CellRendererText(), text=3)
+		column = Gtk.TreeViewColumn(Localize("str_pkg_installed_version"),
+									Gtk.CellRendererText(), text=3)
 		column.set_sort_column_id(3)
 		treeview.append_column(column)
-		column = Gtk.TreeViewColumn("Architecture", Gtk.CellRendererText(), text=4)
+		column = Gtk.TreeViewColumn(Localize("str_pkg_architecture"),
+									Gtk.CellRendererText(), text=4)
 		column.set_sort_column_id(4)
 		treeview.append_column(column)
 
 		treeview.connect("button-press-event", self.on_context_upgrade)
 
 		upgrade_scroll = Gtk.ScrolledWindow()
-		upgrade_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+		upgrade_scroll.set_policy(Gtk.PolicyType.AUTOMATIC,
+								  Gtk.PolicyType.AUTOMATIC)
 		upgrade_scroll.add(treeview)
 
-		notebook.append_page(upgrade_scroll, Gtk.Label(label="Upgrade"))
+		notebook.append_page(upgrade_scroll, Gtk.Label(
+			label=Localize("str_upgrade")))
 
 		# -----------------------
 		# Tab 3: Remove
@@ -254,27 +315,33 @@ class MainWindow(Gtk.Window):
 
 		render_toggle = Gtk.CellRendererToggle()
 		render_toggle.connect("toggled", self.on_toggle_remove)
-		column = Gtk.TreeViewColumn("Remove", render_toggle, active=0)
+		column = Gtk.TreeViewColumn(Localize("str_remove"),
+									render_toggle, active=0)
 		column.set_sort_column_id(0)
 		treeview.append_column(column)
 
-		column = Gtk.TreeViewColumn("Package Name", Gtk.CellRendererText(), text=1)
+		column = Gtk.TreeViewColumn(Localize("str_pkg_name"),
+									Gtk.CellRendererText(), text=1)
 		column.set_sort_column_id(1)
 		treeview.append_column(column)
-		column = Gtk.TreeViewColumn("Installed Version", Gtk.CellRendererText(), text=2)
+		column = Gtk.TreeViewColumn(Localize("str_pkg_installed_version"),
+									Gtk.CellRendererText(), text=2)
 		column.set_sort_column_id(2)
 		treeview.append_column(column)
-		column = Gtk.TreeViewColumn("Architecture", Gtk.CellRendererText(), text=3)
+		column = Gtk.TreeViewColumn(Localize("str_pkg_architecture"),
+									Gtk.CellRendererText(), text=3)
 		column.set_sort_column_id(3)
 		treeview.append_column(column)
 
 		treeview.connect("button-press-event", self.on_context_upgrade)
 
 		upgrade_scroll = Gtk.ScrolledWindow()
-		upgrade_scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+		upgrade_scroll.set_policy(Gtk.PolicyType.AUTOMATIC,
+								  Gtk.PolicyType.AUTOMATIC)
 		upgrade_scroll.add(treeview)
 
-		notebook.append_page(upgrade_scroll, Gtk.Label(label="Remove"))
+		notebook.append_page(upgrade_scroll, Gtk.Label(
+			label=Localize("str_remove")))
 
 		# -----------------------
 		# Tab 4: Settings
@@ -283,23 +350,27 @@ class MainWindow(Gtk.Window):
 		settings_box.set_border_width(16)
 		settings_box.set_spacing(6)
 
-		label = Gtk.Label(label="Editor")
+		label = Gtk.Label(label="Editor options")
 		label.set_xalign(0)
 		settings_box.pack_start(label, False, False, 0)
 
-		button = Gtk.CheckButton(label="Package list autocompletion")
+		button = Gtk.CheckButton(label=Localize(
+			"str_setting_package_list_autocompletion"))
 		button.set_active(user_config["editor"]["installs_autocompletion"])
 		button.data_path = "editor/installs_autocompletion"
 		button.connect("toggled", self.on_settings_toggle)
 		settings_box.pack_start(button, False, False, 0)
 
-		button = Gtk.CheckButton(label="Upgrades selected by default")
-		button.set_active(user_config["editor"]["upgrades_selected_by_default"])
+		button = Gtk.CheckButton(label=Localize(
+			"str_setting_select_upgrades_on_startup"))
+		button.set_active(user_config["editor"]
+						  ["upgrades_selected_by_default"])
 		button.data_path = "editor/upgrades_selected_by_default"
 		button.connect("toggled", self.on_settings_toggle)
 		settings_box.pack_start(button, False, False, 0)
 
-		label = Gtk.Label(label="\nInstall options")
+		label = Gtk.Label(
+			label="\n" + Localize("str_settings_apt_install_options"))
 		label.set_xalign(0)
 		settings_box.pack_start(label, False, False, 0)
 
@@ -321,7 +392,8 @@ class MainWindow(Gtk.Window):
 		button.connect("toggled", self.on_settings_toggle)
 		settings_box.pack_start(button, False, False, 0)
 
-		notebook.append_page(settings_box, Gtk.Label(label="Settings"))
+		notebook.append_page(settings_box, Gtk.Label(
+			label=Localize("str_settings")))
 
 		self.sigid_destroy = self.connect("destroy", Gtk.main_quit)
 		self.show_all()
@@ -361,20 +433,23 @@ class MainWindow(Gtk.Window):
 				# Build menu
 				menu = Gtk.Menu()
 
-				item = Gtk.MenuItem(label="Show package info")
+				item = Gtk.MenuItem(label=Localize("str_show_pkg_info"))
 				item.data_list = widget.get_model()
-				item.connect("activate", self.on_context_apt_package_info, row, False)
+				item.connect("activate",
+							 self.on_context_apt_package_info, row, False)
 				menu.append(item)
 
-				item = Gtk.MenuItem(label="Show package info (raw)")
+				item = Gtk.MenuItem(label=Localize("str_show_pkg_info_raw"))
 				item.data_list = widget.get_model()
-				item.connect("activate", self.on_context_apt_package_info, row, True)
+				item.connect("activate",
+							 self.on_context_apt_package_info, row, True)
 				menu.append(item)
 
-				item = Gtk.MenuItem(label="Remove from list")
+				item = Gtk.MenuItem(label=Localize("str_remove_from_list"))
 				item.data_list = widget.get_model()
 
-				item.connect("activate", lambda _: widget.get_model().remove(widget.get_model().get_iter(row)))
+				item.connect("activate", lambda _: widget.get_model().remove(
+					widget.get_model().get_iter(row)))
 				menu.append(item)
 
 				menu.show_all()
@@ -394,14 +469,16 @@ class MainWindow(Gtk.Window):
 				# Build menu
 				menu = Gtk.Menu()
 
-				item = Gtk.MenuItem(label="Show package info")
+				item = Gtk.MenuItem(label=Localize("str_show_pkg_info"))
 				item.data_list = widget.get_model()
-				item.connect("activate", self.on_context_apt_package_info, row, False)
+				item.connect("activate",
+							 self.on_context_apt_package_info, row, False)
 				menu.append(item)
 
-				item = Gtk.MenuItem(label="Show package info (raw)")
+				item = Gtk.MenuItem(label=Localize("str_show_pkg_info_raw"))
 				item.data_list = widget.get_model()
-				item.connect("activate", self.on_context_apt_package_info, row, True)
+				item.connect("activate",
+							 self.on_context_apt_package_info, row, True)
 				menu.append(item)
 
 				menu.show_all()
@@ -413,14 +490,14 @@ class MainWindow(Gtk.Window):
 	def on_context_apt_package_info(self, widget, path, viewraw):
 		assert widget.data_list
 		pkgname = widget.data_list[path][1].strip()
-		pkgver  = widget.data_list[path][2].strip()
+		pkgver = widget.data_list[path][2].strip()
 		PackageInfoWindow(pkgname, pkgver, viewraw)
 
 	def lookup_apt_packages(self, prefix: str, grep_terms: list = None):
 		prefix = prefix.lower()
 
 		aptcache_proc = subprocess.Popen(
-			["apt-cache", "pkgnames", prefix],
+			[*APT_LANG, "apt-cache", "pkgnames", prefix],
 			stdout=subprocess.PIPE,
 			stderr=subprocess.DEVNULL,
 			text=True
@@ -442,7 +519,8 @@ class MainWindow(Gtk.Window):
 			out, _ = aptcache_proc.communicate()
 
 		lines = out.splitlines()
-		if not lines: return []
+		if not lines:
+			return []
 
 		return [line.strip() for line in lines]
 
@@ -465,12 +543,13 @@ class MainWindow(Gtk.Window):
 		else:
 			# Red flash
 			widget.get_style_context().add_class("error")
-			GLib.timeout_add_seconds(0.5, lambda: widget.get_style_context().remove_class("error"))
+			GLib.timeout_add_seconds(0.5,
+									 lambda: widget.get_style_context().remove_class("error"))
 
 	def get_package_policy(self, pkgname) -> tuple:
 		"""Returns (installed, candidate, archs)"""
 		policy = subprocess.run(
-			["apt-cache", "policy", pkgname.strip()],
+			[*APT_LANG, "apt-cache", "policy", pkgname.strip()],
 			stdout=subprocess.PIPE,
 			stderr=subprocess.DEVNULL,
 			text=True
@@ -495,7 +574,7 @@ class MainWindow(Gtk.Window):
 	def get_apt_upgradables(self):
 		def worker_():
 			proc = subprocess.Popen(
-				["apt", "list", "--upgradable"],
+				[*APT_LANG, "apt", "list", "--upgradable"],
 				stdout=subprocess.PIPE,
 				stderr=subprocess.DEVNULL,
 				text=True
@@ -506,7 +585,8 @@ class MainWindow(Gtk.Window):
 			self.list_upgrade.clear()
 
 			lines = out.splitlines()
-			if not lines: return
+			if not lines:
+				return
 
 			# Skip "Listing..." header if present
 			if lines[0].lower().startswith("listing"):
@@ -519,12 +599,12 @@ class MainWindow(Gtk.Window):
 				cols = pkgcol[1].strip().split(" ")
 
 				ver_cad = cols[1].strip() if len(cols) >= 1 else None
-				arch    = cols[2].strip() if len(cols) >= 2 else None
+				arch = cols[2].strip() if len(cols) >= 2 else None
 				ver_ins = cols[5].strip() if len(cols) >= 5 else None
 
 				if ver_cad and ver_ins and arch:
 					self.list_upgrade.append([user_config["editor"]["upgrades_selected_by_default"],
-											 pkg, ver_cad, ver_ins, arch])
+											  pkg, ver_cad, ver_ins, arch])
 
 		# Run worker
 		threading.Thread(target=worker_, daemon=True).start()
@@ -532,7 +612,7 @@ class MainWindow(Gtk.Window):
 	def get_apt_installed(self):
 		def worker_():
 			proc = subprocess.Popen(
-				["apt", "list", "--installed"],
+				[*APT_LANG, "apt", "list", "--installed"],
 				stdout=subprocess.PIPE,
 				stderr=subprocess.DEVNULL,
 				text=True
@@ -543,7 +623,8 @@ class MainWindow(Gtk.Window):
 			self.list_remove.clear()
 
 			lines = out.splitlines()
-			if not lines: return
+			if not lines:
+				return
 
 			# Skip "Listing..." header if present
 			if lines[0].lower().startswith("listing"):
@@ -556,7 +637,7 @@ class MainWindow(Gtk.Window):
 				cols = pkgcol[1].strip().split(" ")
 
 				ver_ins = cols[1].strip() if len(cols) >= 1 else None
-				arch    = cols[2].strip() if len(cols) >= 2 else None
+				arch = cols[2].strip() if len(cols) >= 2 else None
 
 				if ver_ins and arch:
 					self.list_remove.append([False, pkg, ver_ins, arch])
@@ -565,9 +646,12 @@ class MainWindow(Gtk.Window):
 		threading.Thread(target=worker_, daemon=True).start()
 
 	def do_everything(self, widget):
-		apt_installs = [f'{row[1]}:{row[3]}={row[2]}' for row in self.list_install if row[0]]
-		apt_upgrades = [f'{row[1]}:{row[4]}={row[2]}' for row in self.list_upgrade if row[0]]
-		apt_removes  = [f'{row[1]}:{row[3]}={row[2]}' for row in self.list_remove if row[0]]
+		apt_installs = [apt_canonicalize_package(row[1], row[2], row[3])
+						for row in self.list_install if row[0]]
+		apt_upgrades = [apt_canonicalize_package(row[1], row[2], row[4])
+						for row in self.list_upgrade if row[0]]
+		apt_removes = [apt_canonicalize_package(row[1], row[2], row[3])
+					   for row in self.list_remove if row[0]]
 
 		if not apt_installs and not apt_upgrades and not apt_removes:
 			# Show MessageDialog
@@ -576,7 +660,7 @@ class MainWindow(Gtk.Window):
 				flags=0,
 				message_type=Gtk.MessageType.INFO,
 				buttons=Gtk.ButtonsType.OK,
-				text="Nothing to do."
+				text=Localize("str_nothing_to_do")
 			)
 			dialog.run()
 			dialog.destroy()
@@ -588,8 +672,11 @@ class MainWindow(Gtk.Window):
 			flags=0,
 			message_type=Gtk.MessageType.INFO,
 			buttons=Gtk.ButtonsType.OK_CANCEL,
-			text="Summary:\n- Remove %d packages\n- Install %d packages\n- Upgrade %d packages" \
-				% (len(apt_removes), len(apt_installs), len(apt_upgrades))
+			text=Localize("str_summary_of_operations") % (
+				len(apt_removes),
+				len(apt_installs),
+				len(apt_upgrades)
+			)
 		)
 		response = dialog.run()
 		dialog.destroy()
@@ -601,12 +688,13 @@ class MainWindow(Gtk.Window):
 		GLib.idle_add(self.disconnect, self.sigid_destroy)
 		GLib.idle_add(self.destroy)
 
+
 class PackageInfoWindow(Gtk.Window):
 	def __init__(self, pkgname, pkgver, viewraw=False):
 		self.pkgname = pkgname.strip().lower()
-		self.pkgver  = pkgver.strip().lower()
+		self.pkgver = pkgver.strip().lower()
 
-		super().__init__(title="Package info: {pkgname}".format(pkgname=self.pkgname))
+		super().__init__(title=Localize("str_pkginfo_title") % self.pkgname)
 		self.set_default_size(480, 300)
 		self.set_border_width(8)
 		self.set_position(Gtk.WindowPosition.CENTER)
@@ -619,30 +707,35 @@ class PackageInfoWindow(Gtk.Window):
 
 		# GET INFO
 		proc = subprocess.Popen(
+			# No need for APT_LANG, the output will be readable for the user in their language
 			["apt-cache", "show", self.pkgname],
 			stdout=subprocess.PIPE,
 			stderr=subprocess.DEVNULL,
 			text=True
 		)
 		out, _ = proc.communicate()
-		if not out: return
+		if not out:
+			return
 
-		if viewraw: res_txt = ""
+		if viewraw:
+			res_txt = ""
 
 		# Filter stanzas
 		blocks = out.strip().split("\n\n")
 		for block in blocks:
-			if "Version: {pkgver}".format(pkgver=self.pkgver) in block:
+			if "Version: %s" % self.pkgver in block:
 				# Requested package version
 				if viewraw:
-					if res_txt != "": res_txt += "\n\n"
+					if res_txt != "":
+						res_txt += "\n\n"
 					res_txt += block
 					continue
 
 				# Add fields to table
 				for line in block.splitlines():
 					line = line.strip()
-					if not line: continue
+					if not line:
+						continue
 
 					# Save URLs protocols
 					line = line.replace("http://", "http;;//")
@@ -663,8 +756,9 @@ class PackageInfoWindow(Gtk.Window):
 					line = line.replace("http;;//", "http://")
 					line = line.replace("https;;//", "http://")
 
-					field,data = line[:i_sep].strip(), line[i_sep + 1:].strip()
-					list_fields.append([field,data])
+					field, data = line[:i_sep].strip(
+					), line[i_sep + 1:].strip()
+					list_fields.append([field, data])
 
 		if viewraw:
 			# Info text
@@ -677,22 +771,25 @@ class PackageInfoWindow(Gtk.Window):
 			# Info table
 			treeview = Gtk.TreeView(model=list_fields)
 
-			column = Gtk.TreeViewColumn("Field", Gtk.CellRendererText(), text=0)
+			column = Gtk.TreeViewColumn(Localize("str_form_field"),
+										Gtk.CellRendererText(), text=0)
 			column.set_sort_column_id(0)
 			treeview.append_column(column)
-			column = Gtk.TreeViewColumn("Data", Gtk.CellRendererText(), text=1)
+			column = Gtk.TreeViewColumn(Localize("str_form_data"),
+										Gtk.CellRendererText(), text=1)
 			column.set_sort_column_id(1)
 			treeview.append_column(column)
 			scroll.add(treeview)
 
 		self.show_all()
 
+
 class InstallerWindow(Gtk.Window):
 	def __init__(self, list_installs, list_upgrades, list_removes):
 		global user_config_path
 		global user_config
 
-		super().__init__(title="Installing packages")
+		super().__init__(title=Localize("str_installer_title"))
 		self.set_default_size(480, 0)
 		self.set_border_width(16)
 		self.set_position(Gtk.WindowPosition.CENTER)
@@ -719,13 +816,14 @@ class InstallerWindow(Gtk.Window):
 		vbox.pack_start(self.progressbar, False, True, 0)
 
 		# Expandable log area
-		expander = Gtk.Expander(label="Show details")
+		expander = Gtk.Expander(label=Localize("str_show_details"))
 		expander.set_hexpand(True)
 		expander.set_vexpand(True)
 		vbox.pack_start(expander, True, True, 0)
 
 		scrolled_window = Gtk.ScrolledWindow()
-		scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+		scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC,
+								   Gtk.PolicyType.AUTOMATIC)
 		scrolled_window.set_min_content_height(150)
 		scrolled_window.set_hexpand(True)
 		scrolled_window.set_vexpand(True)
@@ -750,7 +848,8 @@ class InstallerWindow(Gtk.Window):
 		end_iter = self.textbuffer.get_end_iter()
 		self.textbuffer.insert(end_iter, text)
 		# Scroll to bottom
-		mark = self.textbuffer.create_mark(None, self.textbuffer.get_end_iter(), False)
+		mark = self.textbuffer.create_mark(
+			None, self.textbuffer.get_end_iter(), False)
 		self.textview.scroll_to_mark(mark, 0.0, True, 0.0, 1.0)
 
 	def run_commands(self):
@@ -759,47 +858,54 @@ class InstallerWindow(Gtk.Window):
 		# Step (1) Remove
 		if self.list_removes:
 			# Build command
-			cmd = ["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "remove", "-y"]
+			# No need for APT_LANG, the output will be readable for the user in their language
+			cmd = [*APT_NONINTERACTIVE, "apt-get", "remove", "-y"]
 			cmd.extend(self.list_removes)
 
 			# Run install command
 			self.proc = subprocess.Popen(cmd,
-				stdout=subprocess.PIPE,
-				stderr=subprocess.STDOUT,
-				text=True, bufsize=1
-			)
+										 stdout=subprocess.PIPE,
+										 stderr=subprocess.STDOUT,
+										 text=True, bufsize=1)
 			for line in self.proc.stdout:
 				GLib.idle_add(self.progressbar.pulse)
-				if line: GLib.idle_add(self.update_log, line)
+				if line:
+					GLib.idle_add(self.update_log, line)
 
 			self.proc.wait()
 
 		# Step (2) Install & Upgrade
 		if self.list_installs or self.list_upgrades:
 			# Build command
-			cmd = ["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "install", "-y"]
+			# No need for APT_LANG, the output will be readable for the user in their language
+			cmd = [*APT_NONINTERACTIVE, "apt-get", "install", "-y"]
 
-			if user_config['apt_install']['fix_missing']: cmd.append("--fix-missing")
-			if user_config['apt_install']['fix_broken']:  cmd.append("--fix-broken")
-			if user_config['apt_install']['fix_policy']:  cmd.append("--fix-policy")
+			if user_config['apt_install']['fix_missing']:
+				cmd.append("--fix-missing")
+			if user_config['apt_install']['fix_broken']:
+				cmd.append("--fix-broken")
+			if user_config['apt_install']['fix_policy']:
+				cmd.append("--fix-policy")
 
-			if self.list_installs: cmd.extend(self.list_installs)
-			if self.list_upgrades: cmd.extend(self.list_upgrades)
+			if self.list_installs:
+				cmd.extend(self.list_installs)
+			if self.list_upgrades:
+				cmd.extend(self.list_upgrades)
 
 			# Run install command
 			self.proc = subprocess.Popen(cmd,
-				stdout=subprocess.PIPE,
-				stderr=subprocess.STDOUT,
-				text=True, bufsize=1
-			)
+										 stdout=subprocess.PIPE,
+										 stderr=subprocess.STDOUT,
+										 text=True, bufsize=1)
 			for line in self.proc.stdout:
 				GLib.idle_add(self.progressbar.pulse)
-				if line: GLib.idle_add(self.update_log, line)
+				if line:
+					GLib.idle_add(self.update_log, line)
 
 			self.proc.wait()
 
 		GLib.idle_add(self.progressbar.set_fraction, 1.0)
-		GLib.idle_add(self.label.set_text, "Done.")
+		GLib.idle_add(self.label.set_text, Localize("str_done"))
 		# GLib.idle_add(self.destroy)
 
 	def on_destroy(self, button):
@@ -807,9 +913,10 @@ class InstallerWindow(Gtk.Window):
 			self.proc.terminate()
 		Gtk.main_quit()
 
+
 class UpdaterWindow(Gtk.Window):
 	def __init__(self):
-		super().__init__(title="Checking updates")
+		super().__init__(title=Localize("str_updater_title"))
 		self.set_default_size(480, 0)
 		self.set_border_width(16)
 		self.set_position(Gtk.WindowPosition.CENTER)
@@ -832,13 +939,14 @@ class UpdaterWindow(Gtk.Window):
 		vbox.pack_start(self.progressbar, False, True, 0)
 
 		# Expandable log area
-		expander = Gtk.Expander(label="Show details")
+		expander = Gtk.Expander(label=Localize("str_show_details"))
 		expander.set_hexpand(True)
 		expander.set_vexpand(True)
 		vbox.pack_start(expander, True, True, 0)
 
 		scrolled_window = Gtk.ScrolledWindow()
-		scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+		scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC,
+								   Gtk.PolicyType.AUTOMATIC)
 		scrolled_window.set_min_content_height(150)
 		scrolled_window.set_hexpand(True)
 		scrolled_window.set_vexpand(True)
@@ -863,12 +971,14 @@ class UpdaterWindow(Gtk.Window):
 		end_iter = self.textbuffer.get_end_iter()
 		self.textbuffer.insert(end_iter, text)
 		# Scroll to bottom
-		mark = self.textbuffer.create_mark(None, self.textbuffer.get_end_iter(), False)
+		mark = self.textbuffer.create_mark(None, self.textbuffer.get_end_iter(),
+										   False)
 		self.textview.scroll_to_mark(mark, 0.0, True, 0.0, 1.0)
 
 	def run_command(self):
 		self.proc = subprocess.Popen(
-			["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "update", "-y"],
+			# No need for APT_LANG, the output will be readable for the user in their language
+			[*APT_NONINTERACTIVE, "apt-get", "update", "-y"],
 			stdout=subprocess.PIPE,
 			stderr=subprocess.STDOUT,
 			text=True, bufsize=1
@@ -876,17 +986,18 @@ class UpdaterWindow(Gtk.Window):
 
 		for line in self.proc.stdout:
 			GLib.idle_add(self.progressbar.pulse)
-			if line: GLib.idle_add(self.update_log, line)
+			if line:
+				GLib.idle_add(self.update_log, line)
 
 		# Check return code
 		self.proc.wait()
 		if self.proc.returncode != 0:
 			GLib.idle_add(self.progressbar.set_fraction, 1.0)
-			GLib.idle_add(self.label.set_text, "Error.")
+			GLib.idle_add(self.label.set_text, Localize("str_error"))
 			return
 
 		GLib.idle_add(self.progressbar.set_fraction, 1.0)
-		GLib.idle_add(self.label.set_text, "Done.")
+		GLib.idle_add(self.label.set_text, Localize("str_done"))
 
 		GLib.idle_add(self.disconnect, self.sigid_destroy)
 		GLib.idle_add(self.open_main_window)
@@ -900,6 +1011,46 @@ class UpdaterWindow(Gtk.Window):
 	def open_main_window(self):
 		MainWindow()
 
+
 if __name__ == "__main__":
+	# Load fallback l10n
+	if not os.path.exists(master_lang_file_path):
+		print("Default language file doesn't exists: %s." %
+			  master_lang_file_path, file=sys.stderr)
+		sys.exit(1)
+	with open(master_lang_file_path, mode="r", encoding="utf-8") as f:
+		yml = yaml.safe_load(f)
+		if not yml['locales'] or not yml["strings"]:
+			print("Malformed default language file: %s." %
+				  master_lang_file_path, file=sys.stderr)
+			sys.exit(1)
+		l10n_strings_master = yml.get('strings', {})
+
+	# Load user localization
+	lang = os.environ.get("LANG", "en_US.UTF-8")
+	lang_files = glob.glob("/usr/share/vapt/l10n/*.yml", recursive=True)
+	# Search for a file supporting this locale
+	for lang_file in lang_files:
+		found = False
+		with open(lang_file, mode="r", encoding="utf-8") as f:
+			yml = yaml.safe_load(f)
+			if not yml["locales"] or not yml["strings"]:
+				continue
+			# Check that locale is supported by this file
+			for locale in yml.get('locales', []):
+				if locale in lang:
+					lang_file_path = lang_file
+					l10n_strings = yml.get('strings', {})
+					found = True
+					break
+		if found:
+			break
+
+	if lang_file_path is None:
+		print("Could not find language file supporting locale: %s" %
+			  lang, file=sys.stderr)
+		l10n_strings = l10n_strings_master
+
+	# Launch first window
 	UpdaterWindow()
 	Gtk.main()
