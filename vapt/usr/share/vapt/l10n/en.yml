@@ -32,6 +32,10 @@ strings:
   str_settings_apt_install_options: "APT-Install options"
   str_setting_package_list_autocompletion: "Enable package list autocompletion"
   str_setting_select_upgrades_on_startup: "Select all upgrades on startup"
+  str_settings_label_language: "Language:"
+  str_settings_language_default: "Default (System)"
 
   str_nothing_to_do: "Nothing to do"
   str_summary_of_operations: "Summary:\n- Remove %d packages\n- Install %d packages\n- Upgrade %d packages"
+
+  str_confirm_lang_restart: "Changing the language requires a program restart to take effect.\nProceed?"

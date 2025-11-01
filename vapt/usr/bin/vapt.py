@@ -34,7 +34,7 @@ user_config = {
 lang_file_path = None
 master_lang_file_path = "/usr/share/vapt/l10n/en.yml"
 
-langs_available = [{"display": "Default (System)", "file": ""}]
+langs_available = [{"display": "", "file": ""}]
 l10n_strings = {}
 l10n_strings_master = {}
 
@@ -350,7 +350,8 @@ class MainWindow(Gtk.Window):
 		settings_box.pack_start(label, False, False, 0)
 
 		# Label for the combobox
-		lang_label = Gtk.Label(label="  Language:")
+		lang_label = Gtk.Label(
+			label="  " + Localize("str_settings_label_language"))
 		lang_label.set_xalign(0)
 
 		# Lang combobox
@@ -455,7 +456,7 @@ class MainWindow(Gtk.Window):
 				flags=0,
 				message_type=Gtk.MessageType.WARNING,
 				buttons=Gtk.ButtonsType.OK_CANCEL,
-				text="Changing the language requires a restart to take effect.\nProceed?"
+				text=Localize("str_confirm_lang_restart")
 			)
 			response = dialog.run()
 			dialog.destroy()
@@ -1133,6 +1134,9 @@ if __name__ == "__main__":
 		print("Could not find language file supporting locale: %s" %
 			  os_lang, file=sys.stderr)
 		l10n_strings = l10n_strings_master
+
+	# Set system lang label
+	langs_available[0]["display"] = Localize("str_settings_language_default")
 
 	# Launch first window
 	UpdaterWindow()
