@@ -1,4 +1,5 @@
 locales: ["es"]
+displayName: "Español"
 strings:
   str_quit: "Salir"
   str_continue: "Continuar"

@@ -19,6 +19,7 @@ os.makedirs(os.path.dirname(user_config_path), exist_ok=True)
 
 user_config = {
 	'editor': {
+		'l10n_file': '',
 		'installs_autocompletion': True,
 		'upgrades_selected_by_default': True,
 	},
@@ -30,10 +31,10 @@ user_config = {
 }
 
 # == Localization == #
-lang = None
 lang_file_path = None
 master_lang_file_path = "/usr/share/vapt/l10n/en.yml"
 
+langs_available = [{"display": "Default (System)", "file": ""}]
 l10n_strings = {}
 l10n_strings_master = {}
 
@@ -66,13 +67,7 @@ def apt_canonicalize_package(name: str, version: str, arch: str) -> str:
 
 class MainWindow(Gtk.Window):
 	def __init__(self):
-		global user_config_path
 		global user_config
-
-		# Load config
-		if os.path.isfile(user_config_path):
-			with open(user_config_path, 'r') as file:
-				user_config = yaml.safe_load(file)
 
 		super().__init__(title="Visual APT Manager")
 		self.set_default_size(640, 480)
@@ -354,6 +349,33 @@ class MainWindow(Gtk.Window):
 		label.set_xalign(0)
 		settings_box.pack_start(label, False, False, 0)
 
+		# Label for the combobox
+		lang_label = Gtk.Label(label="  Language:")
+		lang_label.set_xalign(0)
+
+		# Lang combobox
+		lang_liststore = Gtk.ListStore(str, str)
+		for l in langs_available:
+			lang_liststore.append([l["display"], l["file"]])
+		langs_combo = Gtk.ComboBox.new_with_model(lang_liststore)
+		render_text = Gtk.CellRendererText()
+		langs_combo.pack_start(render_text, True)
+		langs_combo.add_attribute(render_text, "text", 0)
+
+		active_lang_idx = 0
+		if user_config["editor"]["l10n_file"] != "":
+			for i, l in enumerate(langs_available):
+				if l["file"] == user_config["editor"]["l10n_file"]:
+					active_lang_idx = i
+		langs_combo.set_active(active_lang_idx)
+		langs_combo.connect("changed", self.on_lang_changed)
+
+		# Horizontal box for lang pair
+		lang_box = Gtk.HBox(spacing=6)
+		lang_box.pack_start(lang_label, False, False, 0)
+		lang_box.pack_start(langs_combo, False, False, 0)
+		settings_box.pack_start(lang_box, False, False, 0)
+
 		button = Gtk.CheckButton(label=Localize(
 			"str_setting_package_list_autocompletion"))
 		button.set_active(user_config["editor"]["installs_autocompletion"])
@@ -412,6 +434,37 @@ class MainWindow(Gtk.Window):
 		# Save config
 		with open(user_config_path, 'w') as file:
 			yaml.dump(user_config, file)
+
+	def on_lang_changed(self, widget):
+		global user_config_path
+		global user_config
+
+		tree_iter = widget.get_active_iter()
+		if tree_iter is not None:
+			model = widget.get_model()
+			file = model[tree_iter][1]
+
+			# Save config
+			user_config["editor"]["l10n_file"] = file.strip()
+			with open(user_config_path, 'w') as file:
+				yaml.dump(user_config, file)
+
+			# Display warning
+			dialog = Gtk.MessageDialog(
+				parent=self,
+				flags=0,
+				message_type=Gtk.MessageType.WARNING,
+				buttons=Gtk.ButtonsType.OK_CANCEL,
+				text="Changing the language requires a restart to take effect.\nProceed?"
+			)
+			response = dialog.run()
+			dialog.destroy()
+
+			if response != Gtk.ResponseType.OK:
+				return
+
+			# Restart program
+			os.execv(sys.executable, [sys.executable] + sys.argv)
 
 	def on_toggle_install(self, widget, path):
 		self.list_install[path][0] = not self.list_install[path][0]
@@ -1012,7 +1065,19 @@ class UpdaterWindow(Gtk.Window):
 		MainWindow()
 
 
+def is_valid_l10n_file(yml: dict) -> bool:
+	locales = yml.get('locales', [])
+	strings = yml.get('strings', {})
+	displayName = yml.get('displayName', "")
+	return locales and strings and displayName
+
+
 if __name__ == "__main__":
+	# Load config
+	if os.path.isfile(user_config_path):
+		with open(user_config_path, 'r', encoding="utf-8") as file:
+			user_config = yaml.safe_load(file)
+
 	# Load fallback l10n
 	if not os.path.exists(master_lang_file_path):
 		print("Default language file doesn't exists: %s." %
@@ -1020,35 +1085,53 @@ if __name__ == "__main__":
 		sys.exit(1)
 	with open(master_lang_file_path, mode="r", encoding="utf-8") as f:
 		yml = yaml.safe_load(f)
-		if not yml['locales'] or not yml["strings"]:
+		if not is_valid_l10n_file(yml):
 			print("Malformed default language file: %s." %
 				  master_lang_file_path, file=sys.stderr)
 			sys.exit(1)
 		l10n_strings_master = yml.get('strings', {})
 
 	# Load user localization
-	lang = os.environ.get("LANG", "en_US.UTF-8")
+	os_lang = os.environ.get("LANG", "en_US.UTF-8")
 	lang_files = glob.glob("/usr/share/vapt/l10n/*.yml", recursive=True)
+	user_lang_override = user_config["editor"]["l10n_file"]
+
 	# Search for a file supporting this locale
+	found = False if user_lang_override == "" else True
 	for lang_file in lang_files:
-		found = False
 		with open(lang_file, mode="r", encoding="utf-8") as f:
 			yml = yaml.safe_load(f)
-			if not yml["locales"] or not yml["strings"]:
+			if not is_valid_l10n_file(yml):
 				continue
+
+			# Save for combobox
+			langs_available.append(
+				{"display": yml.get('displayName', ""), "file": lang_file})
+
+			# Check if it's the user override
+			if user_lang_override == lang_file:
+				lang_file_path = lang_file
+				l10n_strings = yml.get('strings', {})
+
+			# If found, skip
+			if found:
+				continue
+
 			# Check that locale is supported by this file
 			for locale in yml.get('locales', []):
-				if locale in lang:
+				if locale in os_lang:
 					lang_file_path = lang_file
 					l10n_strings = yml.get('strings', {})
 					found = True
 					break
-		if found:
-			break
 
 	if lang_file_path is None:
+		if user_lang_override != "":
+			print("Could not find language file: %s" %
+				  user_lang_override, file=sys.stderr)
+			l10n_strings = l10n_strings_master
 		print("Could not find language file supporting locale: %s" %
-			  lang, file=sys.stderr)
+			  os_lang, file=sys.stderr)
 		l10n_strings = l10n_strings_master
 
 	# Launch first window
