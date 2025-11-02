@@ -9,7 +9,7 @@ import subprocess
 # fmt: off
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GLib, Gdk, Pango
+from gi.repository import GLib, Gtk, Gdk, GdkPixbuf, Pango
 # fmt: on
 
 # == Configuration == #
@@ -52,6 +52,16 @@ def Localize(key: str) -> str:
 # == APT Util == #
 APT_LANG = ["env", "LANG=C"]
 APT_NONINTERACTIVE = ["env", "DEBIAN_FRONTEND=noninteractive"]
+
+# == GTK Util == #
+
+
+def gtk_image_icon(path: str, size: int) -> Gtk.Image:
+	return Gtk.Image.new_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale(
+		filename=path,
+		width=size, height=size,
+		preserve_aspect_ratio=True
+	))
 
 
 def apt_canonicalize_package(name: str, version: str, arch: str) -> str:
@@ -115,6 +125,13 @@ class MainWindow(Gtk.Window):
 		spacer = Gtk.Box()
 		spacer.set_hexpand(True)
 		btn_box.pack_start(spacer, True, True, 0)
+
+		button = Gtk.Button()
+		button.connect("clicked", lambda _: show_about_dialog())
+		image = gtk_image_icon("/usr/share/vapt/images/system-help-icon.png",
+							   24)
+		button.add(image)
+		btn_box.pack_start(button, False, False, 0)
 
 		button = Gtk.Button(label=Localize("str_quit"))
 		button.set_halign(Gtk.Align.END)
@@ -1064,6 +1081,22 @@ class UpdaterWindow(Gtk.Window):
 
 	def open_main_window(self):
 		MainWindow()
+
+
+def show_about_dialog():
+	about_dialog = Gtk.AboutDialog()
+	about_dialog.set_program_name("vapt")
+	about_dialog.set_version("v1.1")
+	about_dialog.set_comments(
+		"Visual APT Manager is a simple GUI for APT package management")
+	about_dialog.set_website("https://github.com/bruneo32/vapt")
+	about_dialog.set_authors(["Bruno Castro Garcia <bruneo32b@gmail.com>"])
+	about_dialog.set_license_type(Gtk.License.MIT_X11)
+	about_dialog.set_logo_icon_name("gartoon-system-upgrade")
+	about_dialog.run()
+	about_dialog.destroy()
+
+# ==== MAIN ==== #
 
 
 def is_valid_l10n_file(yml: dict) -> bool:

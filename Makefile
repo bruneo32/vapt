@@ -20,3 +20,6 @@ release: package
 	mkdir -p dist
 	mv vapt.deb dist/vapt.deb
 	dpkg-name -o dist/vapt.deb
+
+install:
+	sudo apt install --reinstall ./vapt.deb

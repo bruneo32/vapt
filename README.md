@@ -13,7 +13,7 @@ Visual APT Manager is a simple GUI for APT package management.
 - `v1.1`
   1. ~Remove packages~
   2. ~Localization~
-  3. Help&About button
+  3. ~Help&About button~
 - `v1.2`
   1. Install local deb files
   2. Search by description
@@ -43,4 +43,5 @@ make test
 ```
 
 # License
-- Gartoon Redux Action Icons: https://www.iconarchive.com/show/gartoon-action-icons-by-gartoon-team.1.html
+- Gartoon Redux Action: https://www.iconarchive.com/show/gartoon-action-icons-by-gartoon-team.html
+- Gartoon Redux Categories: https://www.iconarchive.com/show/gartoon-categories-icons-by-gartoon-team.html
