@@ -1127,6 +1127,7 @@ if __name__ == "__main__":
 
 	# Load user localization
 	os_lang = os.environ.get("LANG", "en_US.UTF-8")
+	gtk_lang = os_lang
 	lang_files = glob.glob("/usr/share/vapt/l10n/*.yml", recursive=True)
 	user_lang_override = user_config["editor"]["l10n_file"]
 
@@ -1145,6 +1146,7 @@ if __name__ == "__main__":
 			# Check if it's the user override
 			if user_lang_override == lang_file:
 				lang_file_path = lang_file
+				gtk_lang = yml.get('locales', [os_lang])[0]
 				l10n_strings = yml.get('strings', {})
 
 			# If found, skip
@@ -1170,6 +1172,12 @@ if __name__ == "__main__":
 
 	# Set system lang label
 	langs_available[0]["display"] = Localize("str_settings_language_default")
+
+	# Set localization for GTK process (OK_CANCEL, ABOUT, etc.)
+	os.environ["LANGUAGE"] = gtk_lang
+	os.environ["LC_MESSAGES"] = gtk_lang
+	os.environ["LANG"] = gtk_lang
+	Gtk.init([])
 
 	# Launch first window
 	UpdaterWindow()
