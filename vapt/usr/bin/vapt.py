@@ -345,7 +345,7 @@ class MainWindow(Gtk.Window):
 		settings_box.set_border_width(16)
 		settings_box.set_spacing(6)
 
-		label = Gtk.Label(label="Editor options")
+		label = Gtk.Label(label=Localize("str_settings_editor_options"))
 		label.set_xalign(0)
 		settings_box.pack_start(label, False, False, 0)
 

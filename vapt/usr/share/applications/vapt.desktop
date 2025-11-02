@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Visual Apt Manager
 Comment=Visual APT manager
-Exec=/bin/bash -c "pkexec env DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY VAPT_CONFIG_PATH=%h/.config/vapt.yml vapt.py"
+Exec=/bin/bash -c "pkexec env XAUTHORITY=$XAUTHORITY env DISPLAY=$DISPLAY env VAPT_CONFIG_PATH=$HOME/.config/vapt.yml vapt.py"
 Icon=gartoon-system-upgrade
 Terminal=false
 Type=Application
