@@ -1,4 +1,6 @@
 # Visual APT Manager for Debian
+![BadgeVersion](https://img.shields.io/badge/version-1.1-blue)
+![BadgeVersion](https://img.shields.io/badge/tag-v1.1-green?link=https%3A%2F%2Fgithub.com%2Fbruneo32%2Fvapt%2Freleases%2Ftag%2Fv1.1)
 
 Visual APT Manager is a simple GUI for APT package management.
 
@@ -7,13 +9,10 @@ Visual APT Manager is a simple GUI for APT package management.
 - Install packages
 - Upgrade packages
 - Show package details
+- Remove packages
 
 ### Roadmap
 > Missing features? [Open an issue](https://github.com/bruneo32/vapt/issues) suggesting them.
-- `v1.1`
-  1. ~Remove packages~
-  2. ~Localization~
-  3. ~Help&About button~
 - `v1.2`
   1. Install local deb files
   2. Search by description
@@ -27,7 +26,7 @@ Visual APT Manager is a simple GUI for APT package management.
 # Installation
 Download the latest version from [Releases](https://github.com/bruneo32/vapt/releases/latest), and install it.
 ```sh
-sudo apt install ./vapt_1.0-1_all.deb
+sudo apt install ./vapt_1.1-1_all.deb
 ```
 
 # Build
