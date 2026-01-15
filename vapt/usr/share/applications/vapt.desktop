@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Visual Apt Manager
 Comment=Visual APT manager
-Exec=/bin/bash -c "pkexec env XAUTHORITY=$XAUTHORITY env DISPLAY=$DISPLAY env VAPT_CONFIG_PATH=$HOME/.config/vapt.yml vapt.py"
+Exec=/bin/bash -c "pkexec env XAUTHORITY=$XAUTHORITY env DISPLAY=$DISPLAY env VAPT_CONFIG_PATH=$HOME/.config/vapt.yml vapt.py %F"
 Icon=gartoon-system-upgrade
 Terminal=false
 Type=Application
@@ -9,3 +9,4 @@ Categories=Utilities;System Tools
 Keywords=vapt;visual;apt;package;manager;
 StartupNotify=false
 StartupWMClass=Vapt.py
+MimeType=application/vnd.debian.binary-package;application/x-deb;

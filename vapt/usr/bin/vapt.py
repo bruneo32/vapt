@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+import re
 import sys
 import glob
 import os.path
 import yaml
 import threading
 import subprocess
+import webbrowser
 
 # fmt: off
 import gi
@@ -72,8 +74,24 @@ def apt_canonicalize_package(name: str, version: str, arch: str) -> str:
 		res += "=" + version.strip()
 	return res
 
-# == GTK windows == #
+def format_filesize(size_bytes: int) -> str:
+	"""Convert a filesize in bytes to a human-readable string with binary units."""
+	if size_bytes < 0: return "--"
 
+	# Define binary units
+	units = ["B", "KB", "MB", "GB", "TB", "PB"]
+	size = float(size_bytes)
+
+	for unit in units:
+		if size < 1024 or unit == units[-1]:
+			# Format to 2 decimal places for sizes >= KiB
+			if unit == "B":
+				return "%d %s" % (size, unit)
+			else:
+				return "%.2f %s" % (size, unit)
+		size /= 1024
+
+# == GTK windows == #
 
 class MainWindow(Gtk.Window):
 	def __init__(self):
@@ -761,7 +779,7 @@ class MainWindow(Gtk.Window):
 
 
 class PackageInfoWindow(Gtk.Window):
-	def __init__(self, pkgname, pkgver, viewraw=False):
+	def __init__(self, pkgname, pkgver, viewraw=False, local_pkg=None):
 		self.pkgname = pkgname.strip().lower()
 		self.pkgver = pkgver.strip().lower()
 
@@ -777,15 +795,35 @@ class PackageInfoWindow(Gtk.Window):
 		list_fields = Gtk.ListStore(str, str)
 
 		# GET INFO
-		proc = subprocess.Popen(
-			# No need for APT_LANG, the output will be readable for the user in their language
-			["apt-cache", "show", self.pkgname],
-			stdout=subprocess.PIPE,
-			stderr=subprocess.DEVNULL,
-			text=True
-		)
-		out, _ = proc.communicate()
+		self.proc = None
+		if local_pkg is None:
+			self.proc = subprocess.Popen(
+				# No need for APT_LANG, the output will be readable for the user in their language
+				["apt-cache", "show", self.pkgname],
+				stdout=subprocess.PIPE,
+				stderr=subprocess.DEVNULL,
+				text=True
+			)
+		else:
+			self.proc = subprocess.Popen(
+				["dpkg", "-I", local_pkg],
+				stdout=subprocess.PIPE,
+				stderr=subprocess.DEVNULL,
+				text=True
+			)
+
+		out, _ = self.proc.communicate()
 		if not out:
+			# Show MessageDialog
+			dialog = Gtk.MessageDialog(
+				parent=self,
+				flags=0,
+				message_type=Gtk.MessageType.INFO,
+				buttons=Gtk.ButtonsType.OK,
+				text="Error getting package info"
+			)
+			dialog.run()
+			dialog.destroy()
 			return
 
 		if viewraw:
@@ -817,7 +855,7 @@ class PackageInfoWindow(Gtk.Window):
 						line = line.replace("http;;//", "http://")
 						line = line.replace("https;;//", "http://")
 						# Append line to the previous field data
-						if list_fields:
+						if list_fields and len(list_fields) > 0:
 							list_fields[-1][1] += "\n" + line
 						continue
 
@@ -827,8 +865,8 @@ class PackageInfoWindow(Gtk.Window):
 					line = line.replace("http;;//", "http://")
 					line = line.replace("https;;//", "http://")
 
-					field, data = line[:i_sep].strip(
-					), line[i_sep + 1:].strip()
+					field, data = line[:i_sep].strip(), \
+         						  line[i_sep + 1:].strip()
 					list_fields.append([field, data])
 
 		if viewraw:
@@ -983,6 +1021,261 @@ class InstallerWindow(Gtk.Window):
 		if hasattr(self, 'proc') and self.proc and self.proc.poll() is None:
 			self.proc.terminate()
 		Gtk.main_quit()
+
+
+class LocalPackageWindow(Gtk.Window):
+	def __init__(self, files):
+		super().__init__(title="Install local packages")
+		self.set_default_size(640, 480)
+		self.set_position(Gtk.WindowPosition.CENTER)
+
+		# Main vertical box to hold toolbar (optional) + notebook
+		main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+		self.add(main_box)
+
+		# Create a Notebook (tabs)
+		package_count = 0
+		notebook = Gtk.Notebook()
+		main_box.pack_start(notebook, True, True, 0)
+
+		# Get data from file
+		for deb_file in files:
+			if not deb_file or not os.path.isfile(deb_file):
+				continue
+				# self.exit_error("File '%s' doesn't exists" % deb_file)
+
+			# Check if it's deb package with 'file' command
+			proc = subprocess.Popen(
+				# No need for APT_LANG, the output will be readable for the user in their language
+				["file", "--mime-type", deb_file],
+				stdout=subprocess.PIPE,
+				stderr=subprocess.DEVNULL,
+				text=True
+			)
+			out, _ = proc.communicate()
+			if not out: continue
+			if "application/vnd.debian.binary-package" not in out:
+				continue
+				# self.exit_error("File '%s' is not a .deb package" % deb_file)
+
+			# Get package metadata
+			proc = subprocess.Popen(
+				# No need for APT_LANG, the output will be readable for the user in their language
+				["dpkg", "-I", deb_file],
+				stdout=subprocess.PIPE,
+				stderr=subprocess.DEVNULL,
+				text=True
+			)
+			PackageInfo, _ = proc.communicate()
+			if not PackageInfo: continue
+
+			metadata = {
+				"Package": None,
+				"Version": None,
+				"Architecture": None,
+				"Installed-Size": None,
+				"Vendor": None,
+				"Maintainer": None,
+				"Homepage": None,
+				"Depends": None
+			}
+			for line in PackageInfo.split("\n"):
+				line = line.strip()
+				for key in metadata.keys():
+					if line.startswith("%s: " % key):
+						value = line[len("%s: " % key):].strip()
+						if key == "Installed-Size":
+							value = format_filesize(int(value))
+						if key == "Depends":
+							value = ", ".join([d.strip() for d in value.split(",")])
+						metadata[key] = value
+
+
+			# == HEADER ==
+			header_box = Gtk.HBox(spacing=12)
+			pkg_icon = gtk_image_icon("/usr/share/vapt/images/system-help-icon.png", 64)
+			header_box.pack_start(pkg_icon, False, False, 0)
+
+			# Info vertical box
+			info_box = Gtk.VBox(spacing=2)
+			header_box.pack_start(info_box, True, True, 0)
+
+			# Name (bold)
+			label_name = Gtk.Label()
+			label_name.set_markup("<b>%s</b>" % metadata['Package'])
+			label_name.set_xalign(0)
+			info_box.pack_start(label_name, False, False, 0)
+
+			# Version and Arch
+			label_ver_arch = Gtk.Label(
+				label="%s | %s" % (metadata['Architecture'], metadata['Version'])
+			)
+			label_ver_arch.set_xalign(0)
+			info_box.pack_start(label_ver_arch, False, False, 0)
+
+			# Vendor
+			if metadata["Maintainer"]:
+				label_vendor = Gtk.Label(label=metadata['Maintainer'])
+				label_vendor.set_xalign(0)
+				info_box.pack_start(label_vendor, False, False, 0)
+
+			# Homepage (clickable)
+			if metadata["Homepage"]:
+				homepage_url = metadata["Homepage"]
+				label_home = Gtk.Label()
+				label_home.set_use_markup(True)
+				label_home.set_markup("<a href='%s'>%s</a>" % (homepage_url, homepage_url))
+				label_home.set_xalign(0)
+				label_home.set_selectable(False)
+				# Open browser when clicked
+				def on_activate_link(label, uri):
+					user = os.environ.get("SUDO_USER")
+					if user:
+						subprocess.Popen(["sudo", "-u", user, "open", homepage_url],
+							stdout=subprocess.DEVNULL,
+							stderr=subprocess.DEVNULL
+						)
+					else:
+						subprocess.Popen(["open", homepage_url],
+							stdout=subprocess.DEVNULL,
+							stderr=subprocess.DEVNULL
+						)
+					return True  # prevent default handler
+				label_home.connect("activate-link", on_activate_link)
+				info_box.pack_start(label_home, False, False, 0)
+
+			# Actions vertical box
+			actions_box = Gtk.VBox(spacing=2)
+			header_box.pack_start(actions_box, True, True, 0)
+
+			button = Gtk.Button(label="Install package")
+			# button.connect("clicked", self.on_details, deb_file)
+			actions_box.pack_start(button, False, False, 0)
+
+			button = Gtk.Button(label="Details")
+			button.connect("clicked", self.on_details, deb_file, metadata)
+			actions_box.pack_start(button, False, False, 0)
+
+			# == TAB CONTENT ==
+			tab_box = Gtk.VBox(spacing=6)
+			tab_box.set_border_width(16)
+			tab_box.pack_start(header_box, False, False, 0)
+
+			# Create a TreeStore for hierarchical files
+			file_tree_store = Gtk.TreeStore(str, str)
+			file_tree_store.set_sort_column_id(0, Gtk.SortType.ASCENDING)
+
+			# Create TreeView for hierarchical display
+			treeview_files = Gtk.TreeView(model=file_tree_store)
+			treeview_files.set_hexpand(True)
+			treeview_files.set_vexpand(True)
+
+			renderer = Gtk.CellRendererText()
+			column = Gtk.TreeViewColumn("Contents of the package", renderer, text=0)
+			treeview_files.append_column(column)
+
+			renderer = Gtk.CellRendererText()
+			column = Gtk.TreeViewColumn("Size", renderer, text=1)
+			treeview_files.append_column(column)
+
+			# Scrollable container
+			scroll_files = Gtk.ScrolledWindow()
+			scroll_files.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+			scroll_files.set_hexpand(True)
+			scroll_files.set_vexpand(True)
+			scroll_files.add(treeview_files)
+
+			tab_box.pack_start(scroll_files, True, True, 0)
+
+			# == Get file list asynchronously ==
+			# Helper to insert paths into tree recursively
+			def insert_path(tree_store, path: str, size: int):
+				# If path contains " -> ", don't split after it
+				path_s = path
+				path_e = None
+				symidx = path.find(" -> ")
+				if symidx != -1:
+					symidx = path.rfind("/", 0, symidx) + 1
+					path_s = path[:symidx]
+					path_e = path[symidx:]
+				parts = path_s.strip("/").split("/")
+				if path_e is not None: parts.append(path_e)
+
+				parent = None
+				current_store = tree_store
+				for i, part in enumerate(parts):
+					# Check if this node already exists under parent
+					exists = False
+					iter_ = current_store.get_iter_first() if parent is None else current_store.iter_children(parent)
+					while iter_:
+						if current_store[iter_][0] == part:
+							exists = True
+							parent = iter_
+							# Remove size from folders
+							current_store[iter_][1] = ""
+							break
+						iter_ = current_store.iter_next(iter_)
+					if not exists:
+						# Create new node
+						new_iter = current_store.append(parent, [part, format_filesize(size)])
+						parent = new_iter
+
+			def fill_files(tree_store):
+				# Run dpkg -c to get file paths
+				try:
+					proc = subprocess.Popen(
+						["dpkg", "-c", deb_file],
+						stdout=subprocess.PIPE,
+						stderr=subprocess.DEVNULL,
+						text=True
+					)
+					out, _ = proc.communicate()
+
+					for line in out.splitlines():
+						# dpkg -c outputs lines like:
+						# -rw-r--r-- root/root       1234 2026-01-15 12:34 ./usr/bin/example -> /usr/share/example/example
+						parts = re.sub(r'\s+', ' ', line).split()
+						if len(parts) >= 6:
+							filesize = int(parts[2])
+							filepath = " ".join(parts[5:])
+							GLib.idle_add(insert_path, tree_store, filepath, filesize)
+
+				except Exception as e:
+					print(e.with_traceback(None))
+					GLib.idle_add(tree_store.append, None, ["Error reading package"])
+
+			# Start the thread
+			threading.Thread(target=fill_files, args=[file_tree_store], daemon=True).start()
+
+			notebook.append_page(tab_box, Gtk.Label(label=metadata["Package"]))
+			package_count += 1
+
+		if package_count > 1:
+			big_btn_install = Gtk.Button(label="Install (%d) packages" % package_count)
+			big_btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+			big_btn_box.set_border_width(6)
+			big_btn_box.pack_start(big_btn_install, True, True, 8)
+			main_box.pack_start(big_btn_box, False, True, 0)
+
+		self.connect("destroy", Gtk.main_quit)
+		self.show_all()
+
+	def on_details(self, button, file, metadata):
+		PackageInfoWindow(metadata["Package"], metadata["Version"], False, local_pkg=file)
+
+	def exit_error(self, msg):
+		# Show MessageDialog
+		dialog = Gtk.MessageDialog(
+			parent=self,
+			flags=0,
+			message_type=Gtk.MessageType.ERROR,
+			buttons=Gtk.ButtonsType.OK,
+			text=msg
+		)
+		dialog.run()
+		dialog.destroy()
+		self.destroy()
+		sys.exit(1)
 
 
 class UpdaterWindow(Gtk.Window):
@@ -1179,6 +1472,10 @@ if __name__ == "__main__":
 	os.environ["LANG"] = gtk_lang
 	Gtk.init([])
 
-	# Launch first window
-	UpdaterWindow()
+	# Check if opened a file as argument
+	if len(sys.argv) > 1:
+		LocalPackageWindow(sys.argv[1:])
+	else:
+		# Launch first window
+		UpdaterWindow()
 	Gtk.main()
