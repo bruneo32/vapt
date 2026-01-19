@@ -4,6 +4,7 @@ import sys
 import glob
 import os.path
 import yaml
+import atexit
 import threading
 import subprocess
 import webbrowser
@@ -90,6 +91,22 @@ def format_filesize(size_bytes: int) -> str:
 			else:
 				return "%.2f %s" % (size, unit)
 		size /= 1024
+
+def mkdtemp():
+	return subprocess.Popen(
+		["mktemp", "-d"],
+		stdout=subprocess.PIPE,
+		stderr=subprocess.DEVNULL,
+		text=True
+	).communicate()[0].strip()
+
+def rmforce(dir):
+	subprocess.Popen(
+		["rm", "-Rf", dir],
+		stdout=subprocess.DEVNULL,
+		stderr=subprocess.DEVNULL,
+		text=True
+	)
 
 # == GTK windows == #
 
@@ -1085,7 +1102,7 @@ class LocalPackageWindow(Gtk.Window):
 					if line.startswith("%s: " % key):
 						value = line[len("%s: " % key):].strip()
 						if key == "Installed-Size":
-							value = format_filesize(int(value))
+							value = format_filesize(int(value) * 1024) # size is in KiB, so scale to bytes
 						if key == "Depends":
 							value = ", ".join([d.strip() for d in value.split(",")])
 						metadata[key] = value
@@ -1108,7 +1125,7 @@ class LocalPackageWindow(Gtk.Window):
 
 			# Version and Arch
 			label_ver_arch = Gtk.Label(
-				label="%s | %s" % (metadata['Architecture'], metadata['Version'])
+				label="%s | %s | %s" % (metadata['Architecture'], metadata['Version'], metadata['Installed-Size'])
 			)
 			label_ver_arch.set_xalign(0)
 			info_box.pack_start(label_ver_arch, False, False, 0)
@@ -1160,7 +1177,77 @@ class LocalPackageWindow(Gtk.Window):
 			tab_box = Gtk.VBox(spacing=6)
 			tab_box.set_border_width(16)
 			tab_box.pack_start(header_box, False, False, 0)
+			notebook2 = Gtk.Notebook()
+			tab_box.pack_start(notebook2, True, True, 0)
 
+			# == Fetch control files ==
+			temp_folder = mkdtemp()
+			proc = subprocess.Popen(
+				["dpkg", "-e", deb_file, temp_folder],
+				stdout=subprocess.PIPE,
+				stderr=subprocess.DEVNULL
+			)
+			proc.communicate()
+
+			# When program exits, remove temp folder
+			atexit.register(rmforce, temp_folder)
+
+			# Create a horizontal paned container to split left and right
+			control_paned = Gtk.Paned.new(Gtk.Orientation.HORIZONTAL)
+			control_paned.set_position(128) # Set initial divider position
+
+			# Create a TreeStore for hierarchical files
+			control_list_files = Gtk.ListStore(str, str)
+			control_list_files.set_sort_column_id(0, Gtk.SortType.ASCENDING)
+			# Append all control files inside the temp folder
+			for control_file in os.listdir(temp_folder):
+				with open(os.path.join(temp_folder, control_file), "r") as f:
+					control_list_files.append([control_file, f.read()])
+
+			# Create TreeView for hierarchical display
+			control_files = Gtk.TreeView(model=control_list_files)
+			control_files.set_hexpand(True)
+			control_files.set_vexpand(True)
+
+			renderer = Gtk.CellRendererText()
+			column = Gtk.TreeViewColumn("File", renderer, text=0)
+			control_files.append_column(column)
+
+			scroll_files = Gtk.ScrolledWindow()
+			scroll_files.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+			scroll_files.set_hexpand(True)
+			scroll_files.set_vexpand(True)
+
+			scroll_files.add(control_files)
+			control_paned.add1(scroll_files)
+
+			# Right panel: Text view for file content
+			scroll_files = Gtk.ScrolledWindow()
+			scroll_files.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+
+			content_textview = Gtk.TextView()
+			content_textview.set_editable(False)
+			content_textview.set_wrap_mode(Gtk.WrapMode.WORD)
+			content_textview.set_monospace(True)
+
+			scroll_files.add(content_textview)
+
+			control_paned.add2(scroll_files)
+
+			# Connect selection changed signal
+			def on_control_file_selected(selection, list_store, textview):
+				"""Callback when a control file is selected in the treeview"""
+				model, treeiter = selection.get_selected()
+				if treeiter is not None:
+					# Get the content from the second column
+					content = model[treeiter][1]
+					textview.get_buffer().set_text(content)
+
+			control_files.get_selection().connect("changed", on_control_file_selected, control_list_files, content_textview)
+
+			notebook2.append_page(control_paned, Gtk.Label(label="Control files"))
+
+			# == Fetch contents of the package ==
 			# Create a TreeStore for hierarchical files
 			file_tree_store = Gtk.TreeStore(str, str)
 			file_tree_store.set_sort_column_id(0, Gtk.SortType.ASCENDING)
@@ -1171,7 +1258,7 @@ class LocalPackageWindow(Gtk.Window):
 			treeview_files.set_vexpand(True)
 
 			renderer = Gtk.CellRendererText()
-			column = Gtk.TreeViewColumn("Contents of the package", renderer, text=0)
+			column = Gtk.TreeViewColumn("Path", renderer, text=0)
 			treeview_files.append_column(column)
 
 			renderer = Gtk.CellRendererText()
@@ -1184,8 +1271,7 @@ class LocalPackageWindow(Gtk.Window):
 			scroll_files.set_hexpand(True)
 			scroll_files.set_vexpand(True)
 			scroll_files.add(treeview_files)
-
-			tab_box.pack_start(scroll_files, True, True, 0)
+			notebook2.append_page(scroll_files, Gtk.Label(label="Contents"))
 
 			# == Get file list asynchronously ==
 			# Helper to insert paths into tree recursively
