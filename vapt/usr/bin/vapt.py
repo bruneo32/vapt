@@ -799,21 +799,56 @@ class PackageInfoWindow(Gtk.Window):
 	def __init__(self, pkgname, pkgver, viewraw=False, local_pkg=None):
 		self.pkgname = pkgname.strip().lower()
 		self.pkgver = pkgver.strip().lower()
+		self.local_pkg = local_pkg
+		self.viewraw = viewraw
 
 		super().__init__(title=Localize("str_pkginfo_title") % self.pkgname)
 		self.set_default_size(480, 300)
 		self.set_border_width(8)
 		self.set_position(Gtk.WindowPosition.CENTER)
 
-		scroll = Gtk.ScrolledWindow()
-		scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-		self.add(scroll)
+		# Create header bar
+		header_bar = Gtk.HeaderBar()
+		header_bar.set_show_close_button(True)
+		header_bar.set_title(Localize("str_pkginfo_title") % self.pkgname)
+		self.set_titlebar(header_bar)
 
-		list_fields = Gtk.ListStore(str, str)
+		# Add toggle button to header bar
+		toggle_button = Gtk.ToggleButton()
+		toggle_button.set_active(self.viewraw)
+		toggle_button.connect("toggled", self.on_toggle_view)
+		image = gtk_image_icon("/usr/share/vapt/images/color-invert-icon.png",
+							   24)
+		toggle_button.set_image(image)
+		toggle_button.set_always_show_image(True)
+		header_bar.pack_start(toggle_button)
 
+		# Scrolled window for content
+		self.scroll = Gtk.ScrolledWindow()
+		self.scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+		self.add(self.scroll)
+
+		# Get package info
+		self.list_fields = Gtk.ListStore(str, str)
+		self.raw_text = ""
+		self.get_package_info()
+
+		# Create both views but only show one
+		self.create_views()
+
+		# Show appropriate view
+		if viewraw:
+			self.show_raw_view()
+		else:
+			self.show_table_view()
+
+		self.show_all()
+
+	def get_package_info(self):
+		"""Get package info and populate both raw text and list fields"""
 		# GET INFO
 		self.proc = None
-		if local_pkg is None:
+		if self.local_pkg is None:
 			self.proc = subprocess.Popen(
 				# No need for APT_LANG, the output will be readable for the user in their language
 				["apt-cache", "show", self.pkgname],
@@ -823,7 +858,7 @@ class PackageInfoWindow(Gtk.Window):
 			)
 		else:
 			self.proc = subprocess.Popen(
-				["dpkg", "-I", local_pkg],
+				["dpkg", "-I", self.local_pkg],
 				stdout=subprocess.PIPE,
 				stderr=subprocess.DEVNULL,
 				text=True
@@ -831,37 +866,31 @@ class PackageInfoWindow(Gtk.Window):
 
 		out, _ = self.proc.communicate()
 		if not out:
-			# Show MessageDialog
-			dialog = Gtk.MessageDialog(
-				parent=self,
-				flags=0,
-				message_type=Gtk.MessageType.INFO,
-				buttons=Gtk.ButtonsType.OK,
-				text="Error getting package info"
-			)
-			dialog.run()
-			dialog.destroy()
+			self.show_error("Error getting package info")
 			return
 
-		if viewraw:
-			res_txt = ""
-
-		# Filter stanzas
+		# Process raw text
 		blocks = out.strip().split("\n\n")
 		for block in blocks:
 			if "Version: %s" % self.pkgver in block:
-				# Requested package version
-				if viewraw:
-					if res_txt != "":
-						res_txt += "\n\n"
-					res_txt += block
-					continue
+				if self.raw_text != "":
+					self.raw_text += "\n\n"
+				self.raw_text += block
 
-				# Add fields to table
+		# Process for table view
+		for block in blocks:
+			if "Version: %s" % self.pkgver in block:
 				for line in block.splitlines():
 					line = line.strip()
 					if not line:
 						continue
+
+					# Human readable size
+					if line.startswith("Installed-Size: "):
+						line = line.replace("Installed-Size: ", "").strip()
+						num = format_filesize(int(line) * 1024) # KiB to bytes
+						line = "Installed-Size: %s" % num
+
 
 					# Save URLs protocols
 					line = line.replace("http://", "http;;//")
@@ -872,8 +901,8 @@ class PackageInfoWindow(Gtk.Window):
 						line = line.replace("http;;//", "http://")
 						line = line.replace("https;;//", "http://")
 						# Append line to the previous field data
-						if list_fields and len(list_fields) > 0:
-							list_fields[-1][1] += "\n" + line
+						if self.list_fields and len(self.list_fields) > 0:
+							self.list_fields[-1][1] += "\n" + line
 						continue
 
 					i_sep = line.index(":")
@@ -882,33 +911,72 @@ class PackageInfoWindow(Gtk.Window):
 					line = line.replace("http;;//", "http://")
 					line = line.replace("https;;//", "http://")
 
-					field, data = line[:i_sep].strip(), \
-         						  line[i_sep + 1:].strip()
-					list_fields.append([field, data])
+					field, data = line[:i_sep].strip(), line[i_sep + 1:].strip()
+					self.list_fields.append([field, data])
 
-		if viewraw:
-			# Info text
-			textview = Gtk.TextView()
-			textview.set_editable(False)
-			textview.get_buffer().set_text(res_txt)
-			# textview.set_wrap_mode(Gtk.WrapMode.WORD)
-			scroll.add(textview)
+	def create_views(self):
+		"""Create both table and raw text views"""
+		# Create table view
+		self.treeview = Gtk.TreeView(model=self.list_fields)
+		column = Gtk.TreeViewColumn(Localize("str_form_field"),
+									Gtk.CellRendererText(), text=0)
+		column.set_sort_column_id(0)
+		self.treeview.append_column(column)
+		column = Gtk.TreeViewColumn(Localize("str_form_data"),
+									Gtk.CellRendererText(), text=1)
+		column.set_sort_column_id(1)
+		self.treeview.append_column(column)
+
+		# Create raw text view
+		self.textview = Gtk.TextView()
+		self.textview.set_editable(False)
+		self.textview.set_wrap_mode(Gtk.WrapMode.WORD)
+		self.textview.get_buffer().set_text(self.raw_text)
+
+	def show_table_view(self):
+		"""Switch to table view"""
+		# Remove current content
+		for child in self.scroll.get_children():
+			self.scroll.remove(child)
+
+		# Add table view
+		self.scroll.add(self.treeview)
+		self.viewraw = False
+
+		# Refresh display
+		self.scroll.show_all()
+
+	def show_raw_view(self):
+		"""Switch to raw view"""
+		# Remove current content
+		for child in self.scroll.get_children():
+			self.scroll.remove(child)
+
+		# Add text view
+		self.scroll.add(self.textview)
+		self.viewraw = True
+
+		# Refresh display
+		self.scroll.show_all()
+
+	def on_toggle_view(self, button):
+		"""Toggle between raw and table views"""
+		if not button.get_active():
+			self.show_table_view()
 		else:
-			# Info table
-			treeview = Gtk.TreeView(model=list_fields)
+			self.show_raw_view()
 
-			column = Gtk.TreeViewColumn(Localize("str_form_field"),
-										Gtk.CellRendererText(), text=0)
-			column.set_sort_column_id(0)
-			treeview.append_column(column)
-			column = Gtk.TreeViewColumn(Localize("str_form_data"),
-										Gtk.CellRendererText(), text=1)
-			column.set_sort_column_id(1)
-			treeview.append_column(column)
-			scroll.add(treeview)
-
-		self.show_all()
-
+	def show_error(self, message):
+		"""Show error message"""
+		dialog = Gtk.MessageDialog(
+			parent=self,
+			flags=0,
+			message_type=Gtk.MessageType.INFO,
+			buttons=Gtk.ButtonsType.OK,
+			text=message
+		)
+		dialog.run()
+		dialog.destroy()
 
 class InstallerWindow(Gtk.Window):
 	def __init__(self, list_installs, list_upgrades, list_removes):
