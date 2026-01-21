@@ -1119,7 +1119,8 @@ class LocalPackageWindow(Gtk.Window):
 		self.add(main_box)
 
 		# Create a Notebook (tabs)
-		package_count = 0
+		self.package_count = 0
+		self.big_btn_install = None
 		notebook = Gtk.Notebook()
 		main_box.pack_start(notebook, True, True, 0)
 
@@ -1233,8 +1234,25 @@ class LocalPackageWindow(Gtk.Window):
 			actions_box = Gtk.VBox(spacing=2)
 			header_box.pack_start(actions_box, True, True, 0)
 
+			# Check "Install" or "Upgrade"
 			button = Gtk.Button(label="Install package")
-			# button.connect("clicked", self.on_details, deb_file)
+			def on_install(button, deb_file):
+				# Prevent double install
+				if not button.get_sensitive(): return
+				# Deactivate button
+				button.set_sensitive(False)
+
+				# TODO: Install package
+
+				# Deactivate button
+				self.package_count -= 1
+				if self.big_btn_install is not None:
+					self.big_btn_install.set_label("Install (%d) packages" % self.package_count)
+					if self.package_count == 0:
+						self.big_btn_install.set_sensitive(False)
+				return
+
+			button.connect("clicked", on_install, deb_file)
 			actions_box.pack_start(button, False, False, 0)
 
 			button = Gtk.Button(label="Details")
@@ -1402,14 +1420,14 @@ class LocalPackageWindow(Gtk.Window):
 			threading.Thread(target=fill_files, args=[file_tree_store], daemon=True).start()
 
 			notebook.append_page(tab_box, Gtk.Label(label=metadata["Package"]))
-			package_count += 1
+			self.package_count += 1
 
-		if package_count > 1:
-			big_btn_install = Gtk.Button(label="Install (%d) packages" % package_count)
-			big_btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-			big_btn_box.set_border_width(6)
-			big_btn_box.pack_start(big_btn_install, True, True, 8)
-			main_box.pack_start(big_btn_box, False, True, 0)
+		if self.package_count > 1:
+			self.big_btn_install = Gtk.Button(label="Install (%d) packages" % self.package_count)
+			self.big_btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+			self.big_btn_box.set_border_width(6)
+			self.big_btn_box.pack_start(self.big_btn_install, True, True, 8)
+			main_box.pack_start(self.big_btn_box, False, True, 0)
 
 		self.connect("destroy", Gtk.main_quit)
 		self.show_all()
