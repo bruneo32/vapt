@@ -1057,6 +1057,7 @@ class InstallerWindow(Gtk.Window):
 			cmd.extend(self.list_removes)
 
 			# Run install command
+			GLib.idle_add(self.update_log, " ".join(cmd) + "\n")
 			self.proc = subprocess.Popen(cmd,
 										 stdout=subprocess.PIPE,
 										 stderr=subprocess.STDOUT,
@@ -1107,6 +1108,142 @@ class InstallerWindow(Gtk.Window):
 			self.proc.terminate()
 		Gtk.main_quit()
 
+class LocalInstallerWindow(Gtk.Window):
+	def __init__(self, list_installs, list_reinstalls, quit_on_finnish=False):
+		global user_config_path
+		global user_config
+
+		super().__init__(title=Localize("str_installer_title"))
+		self.set_default_size(480, 0)
+		self.set_border_width(16)
+		self.set_position(Gtk.WindowPosition.CENTER)
+
+		self.list_installs = list_installs
+		self.list_reinstalls = list_reinstalls
+
+		vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+		self.add(vbox)
+
+		# Info text
+		self.label = Gtk.Label(label="Reading package lists...")
+		self.label.set_xalign(0)
+		self.label.set_line_wrap(False)
+		self.label.set_ellipsize(Pango.EllipsizeMode.END)
+		self.label.set_hexpand(True)
+		vbox.pack_start(self.label, False, True, 0)
+
+		# Progressbar
+		self.progressbar = Gtk.ProgressBar()
+		self.progressbar.set_pulse_step(0.05)
+		self.progressbar.pulse()
+		vbox.pack_start(self.progressbar, False, True, 0)
+
+		# Expandable log area
+		expander = Gtk.Expander(label=Localize("str_show_details"))
+		expander.set_hexpand(True)
+		expander.set_vexpand(True)
+		vbox.pack_start(expander, True, True, 0)
+
+		scrolled_window = Gtk.ScrolledWindow()
+		scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC,
+								   Gtk.PolicyType.AUTOMATIC)
+		scrolled_window.set_min_content_height(150)
+		scrolled_window.set_hexpand(True)
+		scrolled_window.set_vexpand(True)
+		expander.add(scrolled_window)
+
+		self.textview = Gtk.TextView()
+		self.textview.set_editable(False)
+		self.textview.set_wrap_mode(Gtk.WrapMode.NONE)
+		self.textview.set_hexpand(True)
+		self.textview.set_vexpand(True)
+		scrolled_window.add(self.textview)
+
+		self.connect("destroy", self.on_destroy)
+		self.show_all()
+
+		# Start worker thread
+		self.textbuffer = self.textview.get_buffer()
+		threading.Thread(target=self.run_commands, daemon=True).start()
+		if quit_on_finnish:
+			self.connect("destroy", Gtk.main_quit)
+
+	def update_log(self, text):
+		self.label.set_text(text.strip())
+		end_iter = self.textbuffer.get_end_iter()
+		self.textbuffer.insert(end_iter, text)
+		# Scroll to bottom
+		mark = self.textbuffer.create_mark(
+			None, self.textbuffer.get_end_iter(), False)
+		self.textview.scroll_to_mark(mark, 0.0, True, 0.0, 1.0)
+
+	def run_commands(self):
+		global user_config
+
+		# Step (1) Installs
+		if self.list_installs:
+			# Build command
+			# No need for APT_LANG, the output will be readable for the user in their language
+			cmd = [*APT_NONINTERACTIVE, "apt-get", "install", "-y"]
+
+			if user_config['apt_install']['fix_missing']:
+				cmd.append("--fix-missing")
+			if user_config['apt_install']['fix_broken']:
+				cmd.append("--fix-broken")
+			if user_config['apt_install']['fix_policy']:
+				cmd.append("--fix-policy")
+
+			if self.list_installs:
+				cmd.extend(self.list_installs)
+
+			# Run install command
+			GLib.idle_add(self.update_log, " ".join(cmd) + "\n")
+			self.proc = subprocess.Popen(cmd,
+										 stdout=subprocess.PIPE,
+										 stderr=subprocess.STDOUT,
+										 text=True, bufsize=1)
+			for line in self.proc.stdout:
+				GLib.idle_add(self.progressbar.pulse)
+				if line:
+					GLib.idle_add(self.update_log, line)
+
+			self.proc.wait()
+
+		# Step (2) Reinstalls
+		if self.list_reinstalls:
+			# Build command
+			# No need for APT_LANG, the output will be readable for the user in their language
+			cmd = [*APT_NONINTERACTIVE, "apt-get", "install", "-y", "--reinstall"]
+
+			if user_config['apt_install']['fix_missing']:
+				cmd.append("--fix-missing")
+			if user_config['apt_install']['fix_broken']:
+				cmd.append("--fix-broken")
+			if user_config['apt_install']['fix_policy']:
+				cmd.append("--fix-policy")
+
+			if self.list_reinstalls:
+				cmd.extend(self.list_reinstalls)
+
+			# Run install command
+			GLib.idle_add(self.update_log, " ".join(cmd) + "\n")
+			self.proc = subprocess.Popen(cmd,
+										 stdout=subprocess.PIPE,
+										 stderr=subprocess.STDOUT,
+										 text=True, bufsize=1)
+			for line in self.proc.stdout:
+				GLib.idle_add(self.progressbar.pulse)
+				if line:
+					GLib.idle_add(self.update_log, line)
+
+			self.proc.wait()
+
+		GLib.idle_add(self.progressbar.set_fraction, 1.0)
+		GLib.idle_add(self.label.set_text, Localize("str_done"))
+
+	def on_destroy(self, button):
+		if hasattr(self, 'proc') and self.proc and self.proc.poll() is None:
+			self.proc.terminate()
 
 class LocalPackageWindow(Gtk.Window):
 	def __init__(self, files):
@@ -1114,13 +1251,15 @@ class LocalPackageWindow(Gtk.Window):
 		self.set_default_size(640, 480)
 		self.set_position(Gtk.WindowPosition.CENTER)
 
+		self.list_installs = []
+		self.list_reinstalls = []
+
 		# Main vertical box to hold toolbar (optional) + notebook
 		main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 		self.add(main_box)
 
 		# Create a Notebook (tabs)
-		self.package_count = 0
-		self.big_btn_install = None
+		big_btn_install = None
 		notebook = Gtk.Notebook()
 		main_box.pack_start(notebook, True, True, 0)
 
@@ -1234,22 +1373,65 @@ class LocalPackageWindow(Gtk.Window):
 			actions_box = Gtk.VBox(spacing=2)
 			header_box.pack_start(actions_box, True, True, 0)
 
-			# Check "Install" or "Upgrade"
-			button = Gtk.Button(label="Install package")
+			# Get installed version
+			def get_installed_version(pkgname: str) -> str | None:
+				"""Return installed version of package or None if not installed."""
+				proc = subprocess.run(
+					["dpkg-query", "-W", "-f=${Status} ${Version}", pkgname],
+					stdout=subprocess.PIPE,
+					stderr=subprocess.DEVNULL,
+					text=True
+				)
+
+				if proc.returncode != 0:
+					return None
+
+				output = proc.stdout.strip()
+
+				# Installed packages contain:
+				# "install ok installed <version>"
+				if output.startswith("install ok installed"):
+					return output.split()[-1]
+
+				return None
+
+			# Check "Install" or "Upgrade" or "Reinstall"
+			is_reinstall = False
+			installed_version = get_installed_version(metadata["Package"])
+			if installed_version is None:
+				action_label = "Install package"
+				self.list_installs.append(deb_file)
+			elif installed_version == metadata["Version"]:
+				action_label = "Reinstall package"
+				is_reinstall = True
+				self.list_reinstalls.append(deb_file)
+			else:
+				action_label = "Upgrade package"
+				self.list_installs.append(deb_file)
+
+			button = Gtk.Button(label=action_label)
 			def on_install(button, deb_file):
 				# Prevent double install
 				if not button.get_sensitive(): return
 				# Deactivate button
 				button.set_sensitive(False)
 
-				# TODO: Install package
+				# Install package
+				LocalInstallerWindow(
+					[deb_file] if not is_reinstall else None,
+					[deb_file] if is_reinstall else None)
 
 				# Deactivate button
-				self.package_count -= 1
-				if self.big_btn_install is not None:
-					self.big_btn_install.set_label("Install (%d) packages" % self.package_count)
-					if self.package_count == 0:
-						self.big_btn_install.set_sensitive(False)
+				if is_reinstall:
+					self.list_reinstalls.remove(deb_file)
+				else:
+					self.list_installs.remove(deb_file)
+
+				pkg_count = len(self.list_installs) + len(self.list_reinstalls)
+				if big_btn_install is not None:
+					big_btn_install.set_label("Install (%d) package(s)" % pkg_count)
+					if pkg_count == 0:
+						big_btn_install.set_sensitive(False)
 				return
 
 			button.connect("clicked", on_install, deb_file)
@@ -1420,16 +1602,42 @@ class LocalPackageWindow(Gtk.Window):
 			threading.Thread(target=fill_files, args=[file_tree_store], daemon=True).start()
 
 			notebook.append_page(tab_box, Gtk.Label(label=metadata["Package"]))
-			self.package_count += 1
 
-		if self.package_count > 1:
-			self.big_btn_install = Gtk.Button(label="Install (%d) packages" % self.package_count)
-			self.big_btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-			self.big_btn_box.set_border_width(6)
-			self.big_btn_box.pack_start(self.big_btn_install, True, True, 8)
-			main_box.pack_start(self.big_btn_box, False, True, 0)
+		pkg_count = len(self.list_installs) + len(self.list_reinstalls)
+		if pkg_count > 1:
+			big_btn_install = Gtk.Button(label="Install (%d) package(s)" % pkg_count)
+			big_btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+			big_btn_box.set_border_width(6)
+			big_btn_box.pack_start(big_btn_install, True, True, 8)
 
-		self.connect("destroy", Gtk.main_quit)
+			def on_big_install(button):
+				# Show confirmation dialog
+				dialog = Gtk.MessageDialog(
+					parent=self,
+					flags=0,
+					message_type=Gtk.MessageType.INFO,
+					buttons=Gtk.ButtonsType.OK_CANCEL,
+					text=Localize("Summary:\n- Install %d packages\n- Reinstall %d packages") % (
+						len(self.list_installs),
+						len(self.list_reinstalls)
+					)
+				)
+				response = dialog.run()
+				dialog.destroy()
+				if response != Gtk.ResponseType.OK:
+					return
+
+				GLib.idle_add(self.disconnect, self.sigid_destroy)
+				LocalInstallerWindow(self.list_installs,
+					self.list_reinstalls,
+					quit_on_finnish=True)
+				GLib.idle_add(self.destroy)
+
+			big_btn_install.connect("clicked", on_big_install)
+
+			main_box.pack_start(big_btn_box, False, True, 0)
+
+		self.sigid_destroy = self.connect("destroy", Gtk.main_quit)
 		self.show_all()
 
 	def on_details(self, button, file, metadata):
@@ -1512,9 +1720,11 @@ class UpdaterWindow(Gtk.Window):
 		self.textview.scroll_to_mark(mark, 0.0, True, 0.0, 1.0)
 
 	def run_command(self):
+		# No need for APT_LANG, the output will be readable for the user in their language
+		cmd = [*APT_NONINTERACTIVE, "apt-get", "update", "-y"]
+		GLib.idle_add(self.update_log, " ".join(cmd) + "\n")
 		self.proc = subprocess.Popen(
-			# No need for APT_LANG, the output will be readable for the user in their language
-			[*APT_NONINTERACTIVE, "apt-get", "update", "-y"],
+			cmd,
 			stdout=subprocess.PIPE,
 			stderr=subprocess.STDOUT,
 			text=True, bufsize=1
