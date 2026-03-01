@@ -36,6 +36,6 @@ strings:
   str_settings_language_default: "Por defecto (sistema)"
 
   str_nothing_to_do: "Nada por hacer"
-  str_summary_of_operations: "Resumen:\n- Borrar %d paquetes\n- Instalar %d paquetes\n- Actualizar %d paquetes"
+  str_summary_of_operations: "Resumen:\n- Eliminar %d paquetes\n- Instalar %d paquetes\n- Actualizar %d paquetes"
 
   str_confirm_lang_restart: "Cambiar el idioma requiere reiniciar el programa para tomar efecto.\nContinuar?"
