@@ -6,6 +6,7 @@ strings:
   str_show_details: "Show details"
   str_done: "Done"
   str_error: "Error"
+  str_details: "Details"
 
   str_install: "Install"
   str_upgrade: "Upgrade"
@@ -23,6 +24,10 @@ strings:
 
   str_form_field: "Field"
   str_form_data: "Data"
+  str_form_file: "File"
+  str_form_path: "Path"
+  str_form_size: "Size"
+  str_form_contents: "Contents"
 
   str_updater_title: "Checking updates"
   str_pkginfo_title: "Package info: %s"
@@ -37,5 +42,14 @@ strings:
 
   str_nothing_to_do: "Nothing to do"
   str_summary_of_operations: "Summary:\n- Remove %d packages\n- Install %d packages\n- Upgrade %d packages"
+  str_summary_of_operations_local: "Summary:\n- Install %d packages\n- Reinstall %d packages"
 
   str_confirm_lang_restart: "Changing the language requires a program restart to take effect.\nProceed?"
+
+  str_install_local_packages: "Install local packages"
+  str_install_x_packages: "Install (%d) package(s)"
+  str_install_package: "Install package"
+  str_reinstall_package: "Reinstall package"
+  str_upgrade_package: "Upgrade package"
+
+  str_control_files: "Control files"

@@ -1294,7 +1294,7 @@ class LocalInstallerWindow(Gtk.Window):
 
 class LocalPackageWindow(Gtk.Window):
 	def __init__(self, files):
-		super().__init__(title="Install local packages")
+		super().__init__(title=Localize("str_install_local_packages"))
 		self.set_default_size(640, 480)
 		self.set_position(Gtk.WindowPosition.CENTER)
 
@@ -1314,7 +1314,6 @@ class LocalPackageWindow(Gtk.Window):
 		for deb_file in files:
 			if not deb_file or not os.path.isfile(deb_file):
 				continue
-				# self.exit_error("File '%s' doesn't exists" % deb_file)
 
 			# Check if it's deb package with 'file' command
 			proc = subprocess.Popen(
@@ -1328,7 +1327,6 @@ class LocalPackageWindow(Gtk.Window):
 			if not out: continue
 			if "application/vnd.debian.binary-package" not in out:
 				continue
-				# self.exit_error("File '%s' is not a .deb package" % deb_file)
 
 			# Get package metadata
 			proc = subprocess.Popen(
@@ -1446,14 +1444,14 @@ class LocalPackageWindow(Gtk.Window):
 			is_reinstall = False
 			installed_version = get_installed_version(metadata["Package"])
 			if installed_version is None:
-				action_label = "Install package"
+				action_label = Localize("str_install_package")
 				self.list_installs.append(deb_file)
 			elif installed_version == metadata["Version"]:
-				action_label = "Reinstall package"
+				action_label = Localize("str_reinstall_package")
 				is_reinstall = True
 				self.list_reinstalls.append(deb_file)
 			else:
-				action_label = "Upgrade package"
+				action_label = Localize("str_upgrade_package")
 				self.list_installs.append(deb_file)
 
 			button = Gtk.Button(label=action_label)
@@ -1476,7 +1474,7 @@ class LocalPackageWindow(Gtk.Window):
 
 				pkg_count = len(self.list_installs) + len(self.list_reinstalls)
 				if big_btn_install is not None:
-					big_btn_install.set_label("Install (%d) package(s)" % pkg_count)
+					big_btn_install.set_label(Localize("str_install_x_packages") % pkg_count)
 					if pkg_count == 0:
 						big_btn_install.set_sensitive(False)
 				return
@@ -1484,7 +1482,7 @@ class LocalPackageWindow(Gtk.Window):
 			button.connect("clicked", on_install, deb_file)
 			actions_box.pack_start(button, False, False, 0)
 
-			button = Gtk.Button(label="Details")
+			button = Gtk.Button(label=Localize("str_details"))
 			button.connect("clicked", self.on_details, deb_file, metadata)
 			actions_box.pack_start(button, False, False, 0)
 
@@ -1525,7 +1523,7 @@ class LocalPackageWindow(Gtk.Window):
 			control_files.set_vexpand(True)
 
 			renderer = Gtk.CellRendererText()
-			column = Gtk.TreeViewColumn("File", renderer, text=0)
+			column = Gtk.TreeViewColumn(Localize("str_form_file"), renderer, text=0)
 			control_files.append_column(column)
 
 			scroll_files = Gtk.ScrolledWindow()
@@ -1560,7 +1558,7 @@ class LocalPackageWindow(Gtk.Window):
 
 			control_files.get_selection().connect("changed", on_control_file_selected, control_list_files, content_textview)
 
-			notebook2.append_page(control_paned, Gtk.Label(label="Control files"))
+			notebook2.append_page(control_paned, Gtk.Label(label=Localize("str_control_files")))
 
 			# == Fetch contents of the package ==
 			# Create a TreeStore for hierarchical files
@@ -1573,11 +1571,11 @@ class LocalPackageWindow(Gtk.Window):
 			treeview_files.set_vexpand(True)
 
 			renderer = Gtk.CellRendererText()
-			column = Gtk.TreeViewColumn("Path", renderer, text=0)
+			column = Gtk.TreeViewColumn(Localize("str_form_path"), renderer, text=0)
 			treeview_files.append_column(column)
 
 			renderer = Gtk.CellRendererText()
-			column = Gtk.TreeViewColumn("Size", renderer, text=1)
+			column = Gtk.TreeViewColumn(Localize("str_form_size"), renderer, text=1)
 			treeview_files.append_column(column)
 
 			# Scrollable container
@@ -1586,7 +1584,7 @@ class LocalPackageWindow(Gtk.Window):
 			scroll_files.set_hexpand(True)
 			scroll_files.set_vexpand(True)
 			scroll_files.add(treeview_files)
-			notebook2.append_page(scroll_files, Gtk.Label(label="Contents"))
+			notebook2.append_page(scroll_files, Gtk.Label(label=Localize("str_form_contents")))
 
 			# == Get file list asynchronously ==
 			# Helper to insert paths into tree recursively
@@ -1779,7 +1777,7 @@ class LocalPackageWindow(Gtk.Window):
 
 		pkg_count = len(self.list_installs) + len(self.list_reinstalls)
 		if pkg_count > 1:
-			big_btn_install = Gtk.Button(label="Install (%d) package(s)" % pkg_count)
+			big_btn_install = Gtk.Button(label=Localize("str_install_x_packages") % pkg_count)
 			big_btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
 			big_btn_box.set_border_width(6)
 			big_btn_box.pack_start(big_btn_install, True, True, 8)
@@ -1791,7 +1789,7 @@ class LocalPackageWindow(Gtk.Window):
 					flags=0,
 					message_type=Gtk.MessageType.INFO,
 					buttons=Gtk.ButtonsType.OK_CANCEL,
-					text=Localize("Summary:\n- Install %d packages\n- Reinstall %d packages") % (
+					text=Localize("str_summary_of_operations_local") % (
 						len(self.list_installs),
 						len(self.list_reinstalls)
 					)
@@ -1935,12 +1933,12 @@ class UpdaterWindow(Gtk.Window):
 def show_about_dialog():
 	about_dialog = Gtk.AboutDialog()
 	about_dialog.set_program_name("vapt")
-	about_dialog.set_version("v1.1")
+	about_dialog.set_version("v1.2-experimental")
 	about_dialog.set_comments(
-		"Visual APT Manager is a simple GUI for APT package management")
+		"Visual APT Manager is a simple GUI for APT package management\n\nDo you have a bug or suggestion? Please, open an issue on GitHub. You are very welcomed!\n")
 	about_dialog.set_website("https://github.com/bruneo32/vapt")
 	about_dialog.set_authors(["Bruno Castro Garcia <bruneo32b@gmail.com>"])
-	about_dialog.set_license_type(Gtk.License.MIT_X11)
+	about_dialog.set_license_type(Gtk.License.GPL_3_0)
 	about_dialog.set_logo_icon_name("gartoon-system-upgrade")
 	about_dialog.run()
 	about_dialog.destroy()
