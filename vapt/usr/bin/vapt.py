@@ -7,12 +7,12 @@ import yaml
 import atexit
 import threading
 import subprocess
-import webbrowser
+from PIL import Image
 
 # fmt: off
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import GLib, Gtk, Gdk, GdkPixbuf, Pango
+from gi.repository import GLib, Gtk, Gdk, Gio, GdkPixbuf, Pango
 # fmt: on
 
 # == Configuration == #
@@ -66,6 +66,53 @@ def gtk_image_icon(path: str, size: int) -> Gtk.Image:
 		preserve_aspect_ratio=True
 	))
 
+def gtk_gif_icon(path: str, size: int, rate: float) -> Gtk.Image:
+	# Open the animated GIF with Pillow
+	img_pil = Image.open(path)
+
+	# Create the GTK animation container
+	simpleanim = GdkPixbuf.PixbufSimpleAnim.new(size, size, rate)
+	simpleanim.set_loop(True)
+
+	# Iterate through all frames
+	try:
+		while True:
+			# Scale the frame and ensure it has an alpha channel
+			frame_rgba = img_pil.convert("RGBA")
+			frame_scaled = frame_rgba.resize((size, size), Image.Resampling.BILINEAR)
+
+			# Convert Pillow Image data to GLib Bytes
+			data = frame_scaled.tobytes()
+			glib_bytes = GLib.Bytes.new(data)
+
+			# Create a new Pixbuf from the bytes
+			width, height = frame_scaled.size
+			rowstride = width * 4  # 4 channels for RGBA
+
+			pbuf = GdkPixbuf.Pixbuf.new_from_bytes(
+				glib_bytes,
+				GdkPixbuf.Colorspace.RGB,
+				True,  # has_alpha
+				8,     # bps
+				width,
+				height,
+				rowstride
+			)
+
+			# Add animation
+			simpleanim.add_frame(pbuf)
+
+			# Move to the next frame in the GIF
+			img_pil.seek(img_pil.tell() + 1)
+
+	except EOFError:
+		# Pillow throws an EOFError when there are no more frames
+		pass
+
+	# Apply to a Gtk.Image and return
+	img = Gtk.Image()
+	img.set_from_animation(simpleanim)
+	return img
 
 def apt_canonicalize_package(name: str, version: str, arch: str) -> str:
 	res = name.strip()
@@ -141,7 +188,7 @@ class MainWindow(Gtk.Window):
 		os_name = os_name.strip() or "Unknown OS"
 
 		proc = subprocess.Popen(
-			["dpkg", "--print-architecture"],
+			["dpkg-deb", "--print-architecture"],
 			stdout=subprocess.PIPE,
 			stderr=subprocess.DEVNULL,
 			text=True
@@ -858,7 +905,7 @@ class PackageInfoWindow(Gtk.Window):
 			)
 		else:
 			self.proc = subprocess.Popen(
-				["dpkg", "-I", self.local_pkg],
+				["dpkg-deb", "-I", self.local_pkg],
 				stdout=subprocess.PIPE,
 				stderr=subprocess.DEVNULL,
 				text=True
@@ -1286,7 +1333,7 @@ class LocalPackageWindow(Gtk.Window):
 			# Get package metadata
 			proc = subprocess.Popen(
 				# No need for APT_LANG, the output will be readable for the user in their language
-				["dpkg", "-I", deb_file],
+				["dpkg-deb", "-I", deb_file],
 				stdout=subprocess.PIPE,
 				stderr=subprocess.DEVNULL,
 				text=True
@@ -1318,7 +1365,7 @@ class LocalPackageWindow(Gtk.Window):
 
 			# == HEADER ==
 			header_box = Gtk.HBox(spacing=12)
-			pkg_icon = gtk_image_icon("/usr/share/vapt/images/system-help-icon.png", 64)
+			pkg_icon = gtk_gif_icon("/usr/share/vapt/images/loading.gif", 64, 12.0)
 			header_box.pack_start(pkg_icon, False, False, 0)
 
 			# Info vertical box
@@ -1371,7 +1418,7 @@ class LocalPackageWindow(Gtk.Window):
 
 			# Actions vertical box
 			actions_box = Gtk.VBox(spacing=2)
-			header_box.pack_start(actions_box, True, True, 0)
+			header_box.pack_start(actions_box, False, True, 0)
 
 			# Get installed version
 			def get_installed_version(pkgname: str) -> str | None:
@@ -1451,7 +1498,7 @@ class LocalPackageWindow(Gtk.Window):
 			# == Fetch control files ==
 			temp_folder = mkdtemp()
 			proc = subprocess.Popen(
-				["dpkg", "-e", deb_file, temp_folder],
+				["dpkg-deb", "-e", deb_file, temp_folder],
 				stdout=subprocess.PIPE,
 				stderr=subprocess.DEVNULL
 			)
@@ -1574,11 +1621,12 @@ class LocalPackageWindow(Gtk.Window):
 						new_iter = current_store.append(parent, [part, format_filesize(size)])
 						parent = new_iter
 
-			def fill_files(tree_store):
+			def fill_files(deb_file, tree_store, _pkg_icon):
 				# Run dpkg -c to get file paths
+				_deb_files = []
 				try:
 					proc = subprocess.Popen(
-						["dpkg", "-c", deb_file],
+						["dpkg-deb", "-c", deb_file],
 						stdout=subprocess.PIPE,
 						stderr=subprocess.DEVNULL,
 						text=True
@@ -1592,14 +1640,140 @@ class LocalPackageWindow(Gtk.Window):
 						if len(parts) >= 6:
 							filesize = int(parts[2])
 							filepath = " ".join(parts[5:])
+							_deb_files.append(filepath)
 							GLib.idle_add(insert_path, tree_store, filepath, filesize)
-
 				except Exception as e:
 					print(e.with_traceback(None))
 					GLib.idle_add(tree_store.append, None, ["Error reading package"])
+				finally:
+					# Find the most probable icon
+					if _deb_files is None or len(_deb_files) == 0:
+						return None
+
+					icon = None
+					img_formats = [".png", ".jpg", ".jpeg", ".bmp", ".svg"]
+
+					tmpf = mkdtemp()
+					atexit.register(rmforce, tmpf)
+
+					deb_desktop_files = [d for d in _deb_files if d.endswith(".desktop")]
+					if len(deb_desktop_files) > 0:
+						for df in deb_desktop_files:
+							# Extract one file in memory
+							p1 = subprocess.Popen(
+								["dpkg-deb", "--fsys-tarfile", deb_file],
+								stdout=subprocess.PIPE,
+								stderr=subprocess.DEVNULL
+							)
+							p2 = subprocess.Popen(
+								["tar", "-xO", df],
+								stdin=p1.stdout,
+								stdout=subprocess.PIPE,
+								stderr=subprocess.DEVNULL
+							)
+							# Important: allow proper pipe shutdown
+							p1.stdout.close()
+							output, _ = p2.communicate()
+							p1.wait()
+							# Read the file and find "Icon"
+							desktop_content = output.decode("utf-8")
+							for line in desktop_content.splitlines():
+								if line.startswith("Icon="):
+									icon = line[5:].strip()
+									break
+
+					def icon_score(path: str) -> int:
+						score = 0
+						p = path.lower()
+
+						# Prefer hicolor theme
+						if "/hicolor/" in p:
+							score += 50
+
+						# Prefer scalable icons
+						if "/scalable/" in p:
+							score += 40
+
+						# Prefer larger size directories (e.g. 256x256 > 128x128 > 64x64)
+						m = re.search(r'/(\d+)x\1/', p)
+						if m:
+							score += int(m.group(1))
+
+						# Slight preference for PNG over others
+						if p.endswith(".png"):
+							score += 10
+
+						return score
+
+					def icon_update(path: str) -> None:
+						# Extract image file
+						iconfile_path = os.path.join(tmpf, "iconfile")
+						with open(iconfile_path, "wb") as f:
+							p1 = subprocess.Popen(
+								["dpkg-deb", "--fsys-tarfile", deb_file],
+								stdout=subprocess.PIPE,
+								stderr=subprocess.DEVNULL
+							)
+							p2 = subprocess.Popen(
+								["tar", "-xO", path],
+								stdin=p1.stdout,
+								stdout=subprocess.PIPE,
+								stderr=subprocess.DEVNULL
+							)
+							# Important: allow proper pipe shutdown
+							p1.stdout.close()
+							output, _ = p2.communicate()
+							p1.wait()
+							f.write(output)
+
+						# Update GTK image
+						gtk_image = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+							filename=iconfile_path,
+							width=64, height=64,
+							preserve_aspect_ratio=True
+						)
+						GLib.idle_add(_pkg_icon.set_from_pixbuf, gtk_image)
+
+					if icon:
+						# Icons found, use the first one
+						if icon.startswith("/"):
+							# Easy, it's an absolute path inside the package
+							icon = "." + icon
+						else:
+							# Check if file has one of the supported formats
+							raw_look = False
+							for fmt in img_formats:
+								if icon.endswith(fmt):
+									raw_look = True
+									break
+
+							if raw_look:
+								possible_icons = [d for d in _deb_files if d.endswith(icon)]
+							else:
+								# Try searching the Icon in some common image folders
+								possible_icons = []
+								for fmt in img_formats:
+									possible_icons += [d for d in _deb_files if d.endswith(icon + fmt)]
+
+							# Select the most probable icon from possible_icons
+							possible_icons.sort(key=icon_score, reverse=True)
+							icon = possible_icons[0]
+
+						icon_update(icon)
+						return
+
+					# Desktop files do not provide any icon,
+					# use the default icon
+					gtk_image = GdkPixbuf.Pixbuf.new_from_file_at_scale(
+						filename="/usr/share/vapt/images/application-x-deb.png",
+						width=64, height=64,
+						preserve_aspect_ratio=True
+					)
+					GLib.idle_add(_pkg_icon.set_from_pixbuf, gtk_image)
+					return
 
 			# Start the thread
-			threading.Thread(target=fill_files, args=[file_tree_store], daemon=True).start()
+			thread = threading.Thread(target=fill_files, args=[deb_file, file_tree_store, pkg_icon], daemon=True).start()
 
 			notebook.append_page(tab_box, Gtk.Label(label=metadata["Package"]))
 

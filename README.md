@@ -14,7 +14,7 @@ Visual APT Manager is a simple GUI for APT package management.
 ### Roadmap
 > Missing features? [Open an issue](https://github.com/bruneo32/vapt/issues) suggesting them.
 - `v1.2`
-  1. Install local deb files
+  1. ~Install local deb files~
   2. Search by description
   3. Filters
   4. Tooltips
@@ -44,3 +44,4 @@ make test
 # License
 - Gartoon Redux Action: https://www.iconarchive.com/show/gartoon-action-icons-by-gartoon-team.html
 - Gartoon Redux Categories: https://www.iconarchive.com/show/gartoon-categories-icons-by-gartoon-team.html
+- Loading GIF: https://loading.io
