@@ -53,7 +53,8 @@ def Localize(key: str) -> str:
 
 
 # == APT Util == #
-APT_LANG = ["env", "LANG=C"]
+APT_LANG_USER = []
+APT_LANG = ["env", "LANG=C", "env", "LC=C", "env", "LC_ALL=C", "env", "LANGUAGE=C", "env", "LC_MESSAGES=C"]
 APT_NONINTERACTIVE = ["env", "DEBIAN_FRONTEND=noninteractive"]
 
 # == GTK Util == #
@@ -897,8 +898,7 @@ class PackageInfoWindow(Gtk.Window):
 		self.proc = None
 		if self.local_pkg is None:
 			self.proc = subprocess.Popen(
-				# No need for APT_LANG, the output will be readable for the user in their language
-				["apt-cache", "show", self.pkgname],
+				[*APT_LANG_USER, "apt-cache", "show", self.pkgname],
 				stdout=subprocess.PIPE,
 				stderr=subprocess.DEVNULL,
 				text=True
@@ -1099,8 +1099,7 @@ class InstallerWindow(Gtk.Window):
 		# Step (1) Remove
 		if self.list_removes:
 			# Build command
-			# No need for APT_LANG, the output will be readable for the user in their language
-			cmd = [*APT_NONINTERACTIVE, "apt-get", "remove", "-y"]
+			cmd = [*APT_LANG_USER, *APT_NONINTERACTIVE, "apt-get", "remove", "-y"]
 			cmd.extend(self.list_removes)
 
 			# Run install command
@@ -1119,8 +1118,7 @@ class InstallerWindow(Gtk.Window):
 		# Step (2) Install & Upgrade
 		if self.list_installs or self.list_upgrades:
 			# Build command
-			# No need for APT_LANG, the output will be readable for the user in their language
-			cmd = [*APT_NONINTERACTIVE, "apt-get", "install", "-y"]
+			cmd = [*APT_LANG_USER, *APT_NONINTERACTIVE, "apt-get", "install", "-y"]
 
 			if user_config['apt_install']['fix_missing']:
 				cmd.append("--fix-missing")
@@ -1230,8 +1228,7 @@ class LocalInstallerWindow(Gtk.Window):
 		# Step (1) Installs
 		if self.list_installs:
 			# Build command
-			# No need for APT_LANG, the output will be readable for the user in their language
-			cmd = [*APT_NONINTERACTIVE, "apt-get", "install", "-y"]
+			cmd = [*APT_LANG_USER, *APT_NONINTERACTIVE, "apt-get", "install", "-y"]
 
 			if user_config['apt_install']['fix_missing']:
 				cmd.append("--fix-missing")
@@ -1259,8 +1256,7 @@ class LocalInstallerWindow(Gtk.Window):
 		# Step (2) Reinstalls
 		if self.list_reinstalls:
 			# Build command
-			# No need for APT_LANG, the output will be readable for the user in their language
-			cmd = [*APT_NONINTERACTIVE, "apt-get", "install", "-y", "--reinstall"]
+			cmd = [*APT_LANG_USER, *APT_NONINTERACTIVE, "apt-get", "install", "-y", "--reinstall"]
 
 			if user_config['apt_install']['fix_missing']:
 				cmd.append("--fix-missing")
@@ -1317,8 +1313,7 @@ class LocalPackageWindow(Gtk.Window):
 
 			# Check if it's deb package with 'file' command
 			proc = subprocess.Popen(
-				# No need for APT_LANG, the output will be readable for the user in their language
-				["file", "--mime-type", deb_file],
+				[*APT_LANG_USER, "file", "--mime-type", deb_file],
 				stdout=subprocess.PIPE,
 				stderr=subprocess.DEVNULL,
 				text=True
@@ -1330,7 +1325,6 @@ class LocalPackageWindow(Gtk.Window):
 
 			# Get package metadata
 			proc = subprocess.Popen(
-				# No need for APT_LANG, the output will be readable for the user in their language
 				["dpkg-deb", "-I", deb_file],
 				stdout=subprocess.PIPE,
 				stderr=subprocess.DEVNULL,
@@ -1892,8 +1886,7 @@ class UpdaterWindow(Gtk.Window):
 		self.textview.scroll_to_mark(mark, 0.0, True, 0.0, 1.0)
 
 	def run_command(self):
-		# No need for APT_LANG, the output will be readable for the user in their language
-		cmd = [*APT_NONINTERACTIVE, "apt-get", "update", "-y"]
+		cmd = [*APT_LANG_USER, *APT_NONINTERACTIVE, "apt-get", "update", "-y"]
 		GLib.idle_add(self.update_log, " ".join(cmd) + "\n")
 		self.proc = subprocess.Popen(
 			cmd,
@@ -1972,6 +1965,15 @@ if __name__ == "__main__":
 			sys.exit(1)
 		l10n_strings_master = yml.get('strings', {})
 
+
+	# Save user terminal language
+	APT_LANG_USER.extend(["env", "LANGUAGE=%s" % os.environ.get("LANGUAGE", "C")])
+	APT_LANG_USER.extend(["env", "LANG=%s" % os.environ.get("LANG", "C")])
+	APT_LANG_USER.extend(["env", "LC=%s" % os.environ.get("LC", "C")])
+	APT_LANG_USER.extend(["env", "LC_ALL=%s" % os.environ.get("LC_ALL", "C")])
+	APT_LANG_USER.extend(["env", "LC_MESSAGES=%s" % os.environ.get("LC_MESSAGES", "C")])
+	print(APT_LANG_USER)
+
 	# Load user localization
 	os_lang = os.environ.get("LANG", "en_US.UTF-8")
 	gtk_lang = os_lang
@@ -2022,8 +2024,10 @@ if __name__ == "__main__":
 
 	# Set localization for GTK process (OK_CANCEL, ABOUT, etc.)
 	os.environ["LANGUAGE"] = gtk_lang
-	os.environ["LC_MESSAGES"] = gtk_lang
 	os.environ["LANG"] = gtk_lang
+	os.environ["LC"] = gtk_lang
+	os.environ["LC_ALL"] = gtk_lang
+	os.environ["LC_MESSAGES"] = gtk_lang
 	Gtk.init([])
 
 	# Check if opened a file as argument
