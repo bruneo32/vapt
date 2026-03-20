@@ -189,7 +189,7 @@ class MainWindow(Gtk.Window):
 		os_name = os_name.strip() or "Unknown OS"
 
 		proc = subprocess.Popen(
-			["dpkg-deb", "--print-architecture"],
+			["dpkg", "--print-architecture"],
 			stdout=subprocess.PIPE,
 			stderr=subprocess.DEVNULL,
 			text=True
