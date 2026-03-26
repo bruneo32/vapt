@@ -171,8 +171,8 @@ class MainWindow(Gtk.Window):
 		self.add(main_box)
 
 		# Create a Notebook (tabs)
-		notebook = Gtk.Notebook()
-		main_box.pack_start(notebook, True, True, 0)
+		self.notebook = Gtk.Notebook()
+		main_box.pack_start(self.notebook, True, True, 0)
 
 		btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
 		btn_box.set_border_width(6)
@@ -229,19 +229,65 @@ class MainWindow(Gtk.Window):
 		main_box.pack_start(btn_box, False, False, 0)
 
 		# -----------------------
-		# Tab 1: Install package
+		# Tab 1: Search package
 		# -----------------------
 		paned = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
 
 		# Top: Form
 		self.apt_list_install_autocomplete = Gtk.ListStore(str)
 		entry = Gtk.Entry()
-		entry.set_placeholder_text(Localize("str_search_package_by_name"))
+		entry.set_placeholder_text(Localize("str_search_package"))
 		completion = Gtk.EntryCompletion.new()
 		completion.set_model(self.apt_list_install_autocomplete)
 		completion.set_text_column(0)
 		completion.set_inline_completion(True)
 		entry.set_completion(completion)
+
+		entry.connect("activate", self.on_search_entry_activate)
+		paned.pack_start(entry, False, False, 0)
+
+		# Bottom: List
+		self.list_search = Gtk.ListStore(str, str)
+		treeview = Gtk.TreeView(model=self.list_search)
+		treeview.set_search_column(1)
+
+		column = Gtk.TreeViewColumn(Localize("str_pkg_name"),
+									Gtk.CellRendererText(), text=0)
+		column.set_sort_column_id(0)
+		treeview.append_column(column)
+		column = Gtk.TreeViewColumn(Localize("str_details"),
+									Gtk.CellRendererText(), text=1)
+		column.set_sort_column_id(1)
+		treeview.append_column(column)
+
+		treeview.connect("button-press-event", self.on_context_search)
+
+		search_scroll = Gtk.ScrolledWindow()
+		search_scroll.set_policy(Gtk.PolicyType.AUTOMATIC,
+								  Gtk.PolicyType.AUTOMATIC)
+		search_scroll.add(treeview)
+		paned.pack_start(search_scroll, True, True, 0)
+
+		# Put paned into notebook tab
+		tab1_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+		tab1_box.pack_start(paned, True, True, 0)
+		self.notebook.append_page(tab1_box, Gtk.Label(
+			label=Localize("str_search")))
+
+		# -----------------------
+		# Tab 2: Install package
+		# -----------------------
+		paned = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+
+		# Top: Form
+		self.apt_list_install_autocomplete = Gtk.ListStore(str)
+		self.entry_install = Gtk.Entry()
+		self.entry_install.set_placeholder_text(Localize("str_search_package_by_name"))
+		completion = Gtk.EntryCompletion.new()
+		completion.set_model(self.apt_list_install_autocomplete)
+		completion.set_text_column(0)
+		completion.set_inline_completion(True)
+		self.entry_install.set_completion(completion)
 
 		def _completion_match(completion, key, iter_, user_data):
 			if not key:
@@ -272,7 +318,6 @@ class MainWindow(Gtk.Window):
 
 		# Add debounce time
 		self._install_entry_timeout_id = None
-		self._debounce_delay_ms = 300
 
 		def _apt_lookup(text):
 			terms = text.strip().split(" ")
@@ -308,14 +353,14 @@ class MainWindow(Gtk.Window):
 
 			# Call with debounce timeout
 			self._install_entry_timeout_id = GLib.timeout_add(
-				self._debounce_delay_ms,
+				300, # debounce time
 				_apt_lookup,
 				text
 			)
 
-		entry.connect("changed", on_install_entry_changed)
-		entry.connect("activate", self.on_install_entry_activate)
-		paned.pack_start(entry, False, False, 0)
+		self.entry_install.connect("changed", on_install_entry_changed)
+		self.entry_install.connect("activate", self.on_install_entry_activate)
+		paned.pack_start(self.entry_install, False, False, 0)
 
 		# Bottom: List
 		self.list_install = Gtk.ListStore(bool, str, str, str)
@@ -353,7 +398,7 @@ class MainWindow(Gtk.Window):
 		# Put paned into notebook tab
 		tab1_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
 		tab1_box.pack_start(paned, True, True, 0)
-		notebook.append_page(tab1_box, Gtk.Label(
+		self.notebook.append_page(tab1_box, Gtk.Label(
 			label=Localize("str_install")))
 
 		# -----------------------
@@ -396,7 +441,7 @@ class MainWindow(Gtk.Window):
 								  Gtk.PolicyType.AUTOMATIC)
 		upgrade_scroll.add(treeview)
 
-		notebook.append_page(upgrade_scroll, Gtk.Label(
+		self.notebook.append_page(upgrade_scroll, Gtk.Label(
 			label=Localize("str_upgrade")))
 
 		# -----------------------
@@ -435,7 +480,7 @@ class MainWindow(Gtk.Window):
 								  Gtk.PolicyType.AUTOMATIC)
 		upgrade_scroll.add(treeview)
 
-		notebook.append_page(upgrade_scroll, Gtk.Label(
+		self.notebook.append_page(upgrade_scroll, Gtk.Label(
 			label=Localize("str_remove")))
 
 		# -----------------------
@@ -515,7 +560,7 @@ class MainWindow(Gtk.Window):
 		button.connect("toggled", self.on_settings_toggle)
 		settings_box.pack_start(button, False, False, 0)
 
-		notebook.append_page(settings_box, Gtk.Label(
+		self.notebook.append_page(settings_box, Gtk.Label(
 			label=Localize("str_settings")))
 
 		self.sigid_destroy = self.connect("destroy", Gtk.main_quit)
@@ -576,6 +621,38 @@ class MainWindow(Gtk.Window):
 	def on_toggle_remove(self, widget, path):
 		self.list_remove[path][0] = not self.list_remove[path][0]
 
+	def on_context_search(self, widget, event):
+		if event.type == Gdk.EventType.BUTTON_PRESS and event.button == 3:  # Right-click
+			path_info = widget.get_path_at_pos(int(event.x), int(event.y))
+			if path_info is not None:
+				row, col, cellx, celly = path_info
+				widget.grab_focus()
+				widget.set_cursor(row, col, 0)
+
+				# Build menu
+				menu = Gtk.Menu()
+
+				item = Gtk.MenuItem(label=Localize("str_install"))
+				item.data_list = widget.get_model()
+				def _go_install(widget, path):
+					self.entry_install.set_text(widget.data_list[path][0].strip())
+					self.notebook.set_current_page(1)
+				item.connect("activate", _go_install, row)
+				menu.append(item)
+
+				item = Gtk.MenuItem(label=Localize("str_show_pkg_info"))
+				item.data_list = widget.get_model()
+				item.connect("activate", lambda widget, path:
+						PackageInfoWindow(widget.data_list[path][0].strip())
+					, row)
+				menu.append(item)
+
+				menu.show_all()
+				menu.popup_at_pointer(event)
+
+			return True  # stop further handling
+		return False
+
 	def on_context_install(self, widget, event):
 		if event.type == Gdk.EventType.BUTTON_PRESS and event.button == 3:  # Right-click
 			path_info = widget.get_path_at_pos(int(event.x), int(event.y))
@@ -589,14 +666,7 @@ class MainWindow(Gtk.Window):
 
 				item = Gtk.MenuItem(label=Localize("str_show_pkg_info"))
 				item.data_list = widget.get_model()
-				item.connect("activate",
-							 self.on_context_apt_package_info, row, False)
-				menu.append(item)
-
-				item = Gtk.MenuItem(label=Localize("str_show_pkg_info_raw"))
-				item.data_list = widget.get_model()
-				item.connect("activate",
-							 self.on_context_apt_package_info, row, True)
+				item.connect("activate", self.on_context_apt_package_info, row)
 				menu.append(item)
 
 				item = Gtk.MenuItem(label=Localize("str_remove_from_list"))
@@ -625,14 +695,7 @@ class MainWindow(Gtk.Window):
 
 				item = Gtk.MenuItem(label=Localize("str_show_pkg_info"))
 				item.data_list = widget.get_model()
-				item.connect("activate",
-							 self.on_context_apt_package_info, row, False)
-				menu.append(item)
-
-				item = Gtk.MenuItem(label=Localize("str_show_pkg_info_raw"))
-				item.data_list = widget.get_model()
-				item.connect("activate",
-							 self.on_context_apt_package_info, row, True)
+				item.connect("activate", self.on_context_apt_package_info, row)
 				menu.append(item)
 
 				menu.show_all()
@@ -641,11 +704,11 @@ class MainWindow(Gtk.Window):
 			return True  # stop further handling
 		return False
 
-	def on_context_apt_package_info(self, widget, path, viewraw):
+	def on_context_apt_package_info(self, widget, path):
 		assert widget.data_list
 		pkgname = widget.data_list[path][1].strip()
 		pkgver = widget.data_list[path][2].strip()
-		PackageInfoWindow(pkgname, pkgver, viewraw)
+		PackageInfoWindow(pkgname, pkgver)
 
 	def lookup_apt_packages(self, prefix: str, grep_terms: list = None):
 		prefix = prefix.lower()
@@ -699,6 +762,50 @@ class MainWindow(Gtk.Window):
 			widget.get_style_context().add_class("error")
 			GLib.timeout_add_seconds(0.5,
 									 lambda: widget.get_style_context().remove_class("error"))
+
+	def on_search_entry_activate(self, widget):
+		def _alert_error():
+			# Red flash
+			widget.get_style_context().add_class("error")
+			GLib.timeout_add_seconds(0.5,
+									 lambda: widget.get_style_context().remove_class("error"))
+
+		search_term = widget.get_text().strip()
+		if not search_term:
+			_alert_error()
+			return
+
+		self.list_search.clear()
+		apt_proc = subprocess.Popen(
+			[*APT_LANG, "apt-cache", "search", search_term],
+			stdout=subprocess.PIPE,
+			stderr=subprocess.DEVNULL,
+			text=True
+		)
+
+		out, _ = apt_proc.communicate()
+
+		lines = out.splitlines()
+		if not lines:
+			_alert_error()
+			return
+
+		results = []
+		for line in lines:
+			# Skip empty lines
+			ln = line.strip()
+			if not ln or ln == "Sorting..." or ln == "Full Text Search...":
+				continue
+			results.append(ln)
+
+		if not results:
+			_alert_error()
+			return
+
+		for res in results:
+			pkg = res.split(" - ")
+			self.list_search.append([pkg[0].strip(), pkg[1].strip()])
+
 
 	def get_package_policy(self, pkgname) -> tuple:
 		"""Returns (installed, candidate, archs)"""
@@ -844,7 +951,7 @@ class MainWindow(Gtk.Window):
 
 
 class PackageInfoWindow(Gtk.Window):
-	def __init__(self, pkgname, pkgver, viewraw=False, local_pkg=None):
+	def __init__(self, pkgname, pkgver="", viewraw=False, local_pkg=None):
 		self.pkgname = pkgname.strip().lower()
 		self.pkgver = pkgver.strip().lower()
 		self.local_pkg = local_pkg
@@ -919,14 +1026,14 @@ class PackageInfoWindow(Gtk.Window):
 		# Process raw text
 		blocks = out.strip().split("\n\n")
 		for block in blocks:
-			if "Version: %s" % self.pkgver in block:
+			if not self.pkgver or "Version: %s" % self.pkgver in block:
 				if self.raw_text != "":
 					self.raw_text += "\n\n"
 				self.raw_text += block
 
 		# Process for table view
 		for block in blocks:
-			if "Version: %s" % self.pkgver in block:
+			if not self.pkgver or "Version: %s" % self.pkgver in block:
 				for line in block.splitlines():
 					line = line.strip()
 					if not line:

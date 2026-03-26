@@ -8,10 +8,12 @@ strings:
   str_error: "Error"
   str_details: "Detalles"
 
+  str_search: "Buscar"
   str_install: "Instalar"
   str_upgrade: "Actualizar"
   str_remove: "Eliminar"
   str_settings: "Configuración"
+  str_search_package: "Buscar paquete"
   str_search_package_by_name: "Buscar paquete por nombre"
   str_pkg_name: "Nombre del paquete"
   str_pkg_candidate_version: "Versión candidata"
@@ -19,7 +21,6 @@ strings:
   str_pkg_architecture: "Arquitectura"
 
   str_show_pkg_info: "Ver información del paquete"
-  str_show_pkg_info_raw: "Ver información del paquete (sin procesar)"
   str_remove_from_list: "Eliminar de la lista"
 
   str_form_field: "Campo"

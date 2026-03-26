@@ -15,7 +15,7 @@ Visual APT Manager is a simple GUI for APT package management.
 > Missing features? [Open an issue](https://github.com/bruneo32/vapt/issues) suggesting them.
 - `v1.2`
   1. ~Install local deb files~
-  2. Search by description
+  2. ~Search by description~
   3. Filters
   4. Tooltips
 - *Planned*
