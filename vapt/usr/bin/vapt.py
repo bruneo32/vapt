@@ -863,6 +863,10 @@ class MainWindow(Gtk.Window):
 				arch = cols[2].strip() if len(cols) >= 2 else None
 				ver_ins = cols[5].strip() if len(cols) >= 5 else None
 
+				# Trim trailing bracket
+				if ver_ins and ver_ins[-1:] == "]":
+					ver_ins = ver_ins[:-1]
+
 				if ver_cad and ver_ins and arch:
 					self.list_upgrade.append([user_config["editor"]["upgrades_selected_by_default"],
 											  pkg, ver_cad, ver_ins, arch])
@@ -2079,7 +2083,6 @@ if __name__ == "__main__":
 	APT_LANG_USER.extend(["env", "LC=%s" % os.environ.get("LC", "C")])
 	APT_LANG_USER.extend(["env", "LC_ALL=%s" % os.environ.get("LC_ALL", "C")])
 	APT_LANG_USER.extend(["env", "LC_MESSAGES=%s" % os.environ.get("LC_MESSAGES", "C")])
-	print(APT_LANG_USER)
 
 	# Load user localization
 	os_lang = os.environ.get("LANG", "en_US.UTF-8")
