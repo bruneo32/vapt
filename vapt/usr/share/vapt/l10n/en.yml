@@ -13,6 +13,7 @@ strings:
   str_upgrade: "Upgrade"
   str_remove: "Remove"
   str_settings: "Settings"
+  str_filter_by: "Filter by..."
   str_search_package: "Search package by description"
   str_search_package_by_name: "Search package by name"
   str_pkg_name: "Package name"
@@ -54,3 +55,5 @@ strings:
   str_upgrade_package: "Upgrade package"
 
   str_control_files: "Control files"
+
+  str_warning_filter_active: "Active filters, only matching elements are shown"

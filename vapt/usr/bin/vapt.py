@@ -166,9 +166,76 @@ class MainWindow(Gtk.Window):
 		self.set_default_size(640, 480)
 		self.set_position(Gtk.WindowPosition.CENTER)
 
+		# Create header bar
+		header_bar = Gtk.HeaderBar()
+		header_bar.set_show_close_button(True)
+		header_bar.set_title("Visual APT Manager")
+		self.set_titlebar(header_bar)
+
+		# Filter callback
+		def F_filter_list_remove(model, iter, search_cols):
+			if not self.filter_input.get_text():
+				return True
+			filter_term = self.filter_input.get_text().strip().lower()
+			for i in search_cols:
+				if filter_term in model[iter][i].lower():
+					return True
+			return False
+
+		# Add a warning label that appears when filter is active
+		filter_active_label = Gtk.Label(label=Localize("str_warning_filter_active"))
+		filter_active_label.set_no_show_all(True)
+		filter_active_label.set_visible(False)
+		filter_active_label.override_color(Gtk.StateFlags.NORMAL, Gdk.RGBA(1.0, 0.72, 0))
+
+		# Filter buttons
+		self.filter_input = Gtk.Entry()
+		self.filter_input.set_placeholder_text(Localize("Filter by..."))
+		filter_button = Gtk.ToggleButton()
+		filter_image_icon = gtk_image_icon(
+								"/usr/share/vapt/images/filter-icon.png",
+							   24)
+		filter_image_active_icon = gtk_image_icon(
+								"/usr/share/vapt/images/filter-active-icon.png",
+							   24)
+		filter_button.set_image(filter_image_icon)
+		filter_button.set_always_show_image(True)
+
+		def on_filter_button_toggled(button):
+			if button.get_active():
+				self.filter_input.set_visible(True)
+				self.filter_input.grab_focus()
+			else:
+				self.filter_input.set_visible(False)
+		filter_button.connect("toggled", on_filter_button_toggled)
+
+		header_bar.pack_start(filter_button)
+
+		# Filter entry (initially hidden)
+		def on_filter_changed(entry):
+			if not self.filter_input.get_text():
+				filter_active_label.set_visible(False)
+				filter_button.set_image(filter_image_icon)
+				filter_button.get_style_context().remove_class("error")
+			else:
+				filter_active_label.set_visible(True)
+				filter_button.set_image(filter_image_active_icon)
+				filter_button.get_style_context().add_class("error")
+			# Apply filters
+			self.list_filter_search.refilter()
+			self.list_filter_install.refilter()
+			self.list_filter_upgrade.refilter()
+			self.list_filter_remove.refilter()
+
+		self.filter_input.connect("changed", on_filter_changed)
+		self.filter_input.set_visible(False)
+		self.filter_input.set_no_show_all(True)
+		header_bar.pack_start(self.filter_input)
+
 		# Main vertical box to hold toolbar (optional) + notebook
 		main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 		self.add(main_box)
+		main_box.pack_start(filter_active_label, False, False, 0)
 
 		# Create a Notebook (tabs)
 		self.notebook = Gtk.Notebook()
@@ -248,7 +315,11 @@ class MainWindow(Gtk.Window):
 
 		# Bottom: List
 		self.list_search = Gtk.ListStore(str, str)
-		treeview = Gtk.TreeView(model=self.list_search)
+
+		self.list_filter_search = self.list_search.filter_new()
+		self.list_filter_search.set_visible_func(F_filter_list_remove, [0,1])
+
+		treeview = Gtk.TreeView(model=self.list_filter_search)
 		treeview.set_search_column(1)
 
 		column = Gtk.TreeViewColumn(Localize("str_pkg_name"),
@@ -364,7 +435,11 @@ class MainWindow(Gtk.Window):
 
 		# Bottom: List
 		self.list_install = Gtk.ListStore(bool, str, str, str)
-		treeview = Gtk.TreeView(model=self.list_install)
+
+		self.list_filter_install = self.list_install.filter_new()
+		self.list_filter_install.set_visible_func(F_filter_list_remove, [1,2,3])
+
+		treeview = Gtk.TreeView(model=Gtk.TreeModelSort(model=self.list_filter_install))
 		treeview.set_search_column(1)
 
 		render_toggle = Gtk.CellRendererToggle()
@@ -407,7 +482,10 @@ class MainWindow(Gtk.Window):
 		self.list_upgrade = Gtk.ListStore(bool, str, str, str, str)
 		self.get_apt_upgradables()
 
-		treeview = Gtk.TreeView(model=self.list_upgrade)
+		self.list_filter_upgrade = self.list_upgrade.filter_new()
+		self.list_filter_upgrade.set_visible_func(F_filter_list_remove, [1,2,3,4])
+
+		treeview = Gtk.TreeView(model=Gtk.TreeModelSort(model=self.list_filter_upgrade))
 		treeview.set_search_column(1)
 
 		render_toggle = Gtk.CellRendererToggle()
@@ -450,7 +528,10 @@ class MainWindow(Gtk.Window):
 		self.list_remove = Gtk.ListStore(bool, str, str, str)
 		self.get_apt_installed()
 
-		treeview = Gtk.TreeView(model=self.list_remove)
+		self.list_filter_remove = self.list_remove.filter_new()
+		self.list_filter_remove.set_visible_func(F_filter_list_remove, [1,2,3])
+
+		treeview = Gtk.TreeView(model=Gtk.TreeModelSort(model=self.list_filter_remove))
 		treeview.set_search_column(1)
 
 		render_toggle = Gtk.CellRendererToggle()
@@ -562,6 +643,7 @@ class MainWindow(Gtk.Window):
 
 		self.notebook.append_page(settings_box, Gtk.Label(
 			label=Localize("str_settings")))
+		self.notebook.set_current_page(2)
 
 		self.sigid_destroy = self.connect("destroy", Gtk.main_quit)
 		self.show_all()
@@ -612,14 +694,29 @@ class MainWindow(Gtk.Window):
 			# Restart program
 			os.execv(sys.executable, [sys.executable] + sys.argv)
 
+	def _get_original_iter(self, model, path):
+		it = model.get_iter(path)
+		if it is None:
+			return None
+		while hasattr(model, 'convert_iter_to_child_iter'):
+			it = model.convert_iter_to_child_iter(it)
+			model = model.get_model() if hasattr(model, 'get_model') else model
+		return it
+
 	def on_toggle_install(self, widget, path):
-		self.list_install[path][0] = not self.list_install[path][0]
+		child_iter = self._get_original_iter(self.list_filter_install, path)
+		if child_iter:
+			self.list_install[child_iter][0] = not self.list_install[child_iter][0]
 
 	def on_toggle_upgrade(self, widget, path):
-		self.list_upgrade[path][0] = not self.list_upgrade[path][0]
+		child_iter = self._get_original_iter(self.list_filter_upgrade, path)
+		if child_iter:
+			self.list_upgrade[child_iter][0] = not self.list_upgrade[child_iter][0]
 
 	def on_toggle_remove(self, widget, path):
-		self.list_remove[path][0] = not self.list_remove[path][0]
+		child_iter = self._get_original_iter(self.list_filter_remove, path)
+		if child_iter:
+			self.list_remove[child_iter][0] = not self.list_remove[child_iter][0]
 
 	def on_context_search(self, widget, event):
 		if event.type == Gdk.EventType.BUTTON_PRESS and event.button == 3:  # Right-click
@@ -661,6 +758,10 @@ class MainWindow(Gtk.Window):
 				widget.grab_focus()
 				widget.set_cursor(row, col, 0)
 
+				original_iter = self._get_original_iter(widget.get_model(), row)
+				if original_iter is None:
+					return True  # something went wrong
+
 				# Build menu
 				menu = Gtk.Menu()
 
@@ -671,9 +772,7 @@ class MainWindow(Gtk.Window):
 
 				item = Gtk.MenuItem(label=Localize("str_remove_from_list"))
 				item.data_list = widget.get_model()
-
-				item.connect("activate", lambda _: widget.get_model().remove(
-					widget.get_model().get_iter(row)))
+				item.connect("activate", lambda _: self.list_install.remove(original_iter))
 				menu.append(item)
 
 				menu.show_all()

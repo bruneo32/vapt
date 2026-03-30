@@ -16,7 +16,7 @@ Visual APT Manager is a simple GUI for APT package management.
 - `v1.2`
   1. ~Install local deb files~
   2. ~Search by description~
-  3. Filters
+  3. ~Filters~
   4. Tooltips
 - *Planned*
   - Actions: autoremove, autoclean, etc.
@@ -44,4 +44,5 @@ make test
 # License
 - Gartoon Redux Action: https://www.iconarchive.com/show/gartoon-action-icons-by-gartoon-team.html
 - Gartoon Redux Categories: https://www.iconarchive.com/show/gartoon-categories-icons-by-gartoon-team.html
+- Filter icon: https://www.iconarchive.com/show/mono-general-4-icons-by-custom-icon-design/filter-icon.html
 - Loading GIF: https://loading.io
