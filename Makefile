@@ -16,6 +16,7 @@ package:
 	@cp LICENSE vapt/usr/share/doc/vapt/copyright
 
 	@echo "+ Processing deb_control..."
+	@mkdir -p vapt/DEBIAN
 	@cp deb_control vapt/DEBIAN/control
 
 	@SIZE=$$(du -sk vapt --exclude=vapt/DEBIAN | cut -f1); \
