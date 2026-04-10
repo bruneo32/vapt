@@ -1,7 +1,8 @@
 # Visual APT Manager
-VAPT is a simple, but powerful package manager GUI for
+VAPT is a **simple**, but **powerful** package **manager** GUI for
 *Debian based* distros *(Debian, Ubuntu, Linux Mint, Pop_OS!, etc)*.
 
+## Features and support
 [![Release](https://img.shields.io/github/v/release/bruneo32/vapt)](https://github.com/bruneo32/vapt/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/bruneo32/vapt/total?style=social)](https://github.com/bruneo32/vapt/releases)
 ![Stars](https://img.shields.io/github/stars/bruneo32/vapt?style=social)\
@@ -22,7 +23,7 @@ VAPT is a simple, but powerful package manager GUI for
 ![scr_about](_media/scr_about.png)
 ![scr_localpkg](_media/scr_localpkg.png)
 
-### Roadmap
+# Roadmap
 > Missing features? [Open an issue](https://github.com/bruneo32/vapt/issues) suggesting them.
 - *Planned*
   - Refactor into python modules
@@ -30,13 +31,15 @@ VAPT is a simple, but powerful package manager GUI for
   - apt-mark support
   - Manage multiarch settings
 
-# Installation
-Download the latest version from [Releases](https://github.com/bruneo32/vapt/releases), and install it.
+# Development
+
+## Installation
+Download the latest version from [releases](https://github.com/bruneo32/vapt/releases), and install it.
 ```sh
 sudo apt install ./vapt_1.2-4_all.deb
 ```
 
-# Build
+## Build
 There is no building process because it's just *python*, but you can wrap up the package.
 ```sh
 make package
