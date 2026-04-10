@@ -2148,13 +2148,13 @@ class UpdaterWindow(Gtk.Window):
 def show_about_dialog():
 	about_dialog = Gtk.AboutDialog()
 	about_dialog.set_program_name("vapt")
-	about_dialog.set_version("v1.2-experimental")
+	about_dialog.set_version("v1.2-4")
 	about_dialog.set_comments(
-		"Visual APT Manager is a simple GUI for APT package management\n\nDo you have a bug or suggestion? Please, open an issue on GitHub. You are very welcomed!\n")
+		"Visual APT Manager is a simple GUI for APT package management\n\nDo you have a bug or suggestion?\nPlease, open an issue on GitHub. You are very welcomed!\n")
 	about_dialog.set_website("https://github.com/bruneo32/vapt")
 	about_dialog.set_authors(["Bruno Castro Garcia <bruneo32b@gmail.com>"])
 	about_dialog.set_license_type(Gtk.License.GPL_3_0)
-	about_dialog.set_logo_icon_name("gartoon-system-upgrade")
+	about_dialog.set_logo_icon_name("vapt")
 	about_dialog.run()
 	about_dialog.destroy()
 
