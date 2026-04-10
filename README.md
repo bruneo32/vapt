@@ -1,6 +1,6 @@
 # Visual APT Manager
-Visual APT Manager is a simple GUI for APT package management
-for Debian based distros *(Debian, Ubuntu, Linux Mint, Pop_OS!, etc)*.
+VAPT is a simple, but powerful package manager GUI for
+*Debian based* distros *(Debian, Ubuntu, Linux Mint, Pop_OS!, etc)*.
 
 [![Release](https://img.shields.io/github/v/release/bruneo32/vapt)](https://github.com/bruneo32/vapt/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/bruneo32/vapt/total?style=social)](https://github.com/bruneo32/vapt/releases)
@@ -11,14 +11,16 @@ for Debian based distros *(Debian, Ubuntu, Linux Mint, Pop_OS!, etc)*.
 [![License](https://img.shields.io/github/license/bruneo32/vapt)](LICENSE)
 [![Commits](https://img.shields.io/github/commit-activity/m/bruneo32/vapt)](https://github.com/bruneo32/vapt/commits/main)
 
+| Feature | Description                                        |
+|---------|----------------------------------------------------|
+| Install | Install **remote** or **local** packages easily    |
+| Search  | **Find** packages by name or description           |
+| Upgrade | **Automatically** or **manually** upgrade packages |
+| Remove  | **List** and **remove** any package installed      |
+| Details | Read package **details** and **contents**          |
 
-### Current features
-- Install **local *deb*** files
-- **Search** packages
-- **Install** packages
-- **Upgrade** packages
-- **Remove** packages
-- Show package **details**
+![scr_about](_media/scr_about.png)
+![scr_localpkg](_media/scr_localpkg.png)
 
 ### Roadmap
 > Missing features? [Open an issue](https://github.com/bruneo32/vapt/issues) suggesting them.
