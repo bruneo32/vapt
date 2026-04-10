@@ -1,2 +1,7 @@
-dist
+# Mind that 'make clean' will remove
+# all the files and folders listed here
+
 *.deb
+vapt/DEBIAN/*
+dist/
+vapt/usr/share/doc/vapt/*
