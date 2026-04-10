@@ -190,8 +190,9 @@ class MainWindow(Gtk.Window):
 
 		# Filter buttons
 		self.filter_input = Gtk.Entry()
-		self.filter_input.set_placeholder_text(Localize("Filter by..."))
+		self.filter_input.set_placeholder_text(Localize("str_filter_by"))
 		filter_button = Gtk.ToggleButton()
+		filter_button.set_tooltip_text(Localize("str_tooltip_filter"))
 		filter_image_icon = gtk_image_icon(
 								"/usr/share/vapt/images/filter-icon.png",
 							   24)
@@ -265,9 +266,11 @@ class MainWindow(Gtk.Window):
 		dpkg_arch = dpkg_arch.strip() or "N/A"
 
 		label = Gtk.Label(label=os_name)
+		label.set_tooltip_text(Localize("str_tooltip_osname"))
 		btn_box.pack_start(label, False, False, 0)
 
 		label = Gtk.Label(label="  " + dpkg_arch)
+		label.set_tooltip_text(Localize("str_tooltip_sys_arch"))
 		# label.modify_font(Pango.FontDescription("Bold"))
 		btn_box.pack_start(label, False, False, 0)
 
@@ -277,6 +280,7 @@ class MainWindow(Gtk.Window):
 		btn_box.pack_start(spacer, True, True, 0)
 
 		button = Gtk.Button()
+		button.set_tooltip_text(Localize("str_tooltip_help_about"))
 		button.connect("clicked", lambda _: show_about_dialog())
 		image = gtk_image_icon("/usr/share/vapt/images/system-help-icon.png",
 							   24)
@@ -605,6 +609,7 @@ class MainWindow(Gtk.Window):
 
 		button = Gtk.CheckButton(label=Localize(
 			"str_setting_package_list_autocompletion"))
+		button.set_tooltip_text(Localize("str_tooltip_editor_autocompletion"))
 		button.set_active(user_config["editor"]["installs_autocompletion"])
 		button.data_path = "editor/installs_autocompletion"
 		button.connect("toggled", self.on_settings_toggle)
@@ -612,6 +617,7 @@ class MainWindow(Gtk.Window):
 
 		button = Gtk.CheckButton(label=Localize(
 			"str_setting_select_upgrades_on_startup"))
+		button.set_tooltip_text(Localize("str_tooltip_editor_upgrades_selected"))
 		button.set_active(user_config["editor"]
 						  ["upgrades_selected_by_default"])
 		button.data_path = "editor/upgrades_selected_by_default"
@@ -624,18 +630,21 @@ class MainWindow(Gtk.Window):
 		settings_box.pack_start(label, False, False, 0)
 
 		button = Gtk.CheckButton(label="Fix missing")
+		button.set_tooltip_text(Localize("str_tooltip_apt_fix_missing"))
 		button.set_active(user_config["apt_install"]["fix_missing"])
 		button.data_path = "apt_install/fix_missing"
 		button.connect("toggled", self.on_settings_toggle)
 		settings_box.pack_start(button, False, False, 0)
 
 		button = Gtk.CheckButton(label="Fix broken")
+		button.set_tooltip_text(Localize("str_tooltip_apt_fix_broken"))
 		button.set_active(user_config["apt_install"]["fix_broken"])
 		button.data_path = "apt_install/fix_broken"
 		button.connect("toggled", self.on_settings_toggle)
 		settings_box.pack_start(button, False, False, 0)
 
 		button = Gtk.CheckButton(label="Fix policy")
+		button.set_tooltip_text(Localize("str_tooltip_apt_fix_policy"))
 		button.set_active(user_config["apt_install"]["fix_policy"])
 		button.data_path = "apt_install/fix_policy"
 		button.connect("toggled", self.on_settings_toggle)
@@ -1073,6 +1082,7 @@ class PackageInfoWindow(Gtk.Window):
 
 		# Add toggle button to header bar
 		toggle_button = Gtk.ToggleButton()
+		toggle_button.set_tooltip_text(Localize("str_tooltip_view_raw_output"))
 		toggle_button.set_active(self.viewraw)
 		toggle_button.connect("toggled", self.on_toggle_view)
 		image = gtk_image_icon("/usr/share/vapt/images/color-invert-icon.png",
@@ -1438,7 +1448,8 @@ class LocalInstallerWindow(Gtk.Window):
 		# Step (1) Installs
 		if self.list_installs:
 			# Build command
-			cmd = [*APT_LANG_USER, *APT_NONINTERACTIVE, "apt-get", "install", "-y"]
+			cmd = [*APT_LANG_USER, *APT_NONINTERACTIVE,
+				"apt-get", "install", "-y", "--allow-downgrades"]
 
 			if user_config['apt_install']['fix_missing']:
 				cmd.append("--fix-missing")
@@ -1466,7 +1477,8 @@ class LocalInstallerWindow(Gtk.Window):
 		# Step (2) Reinstalls
 		if self.list_reinstalls:
 			# Build command
-			cmd = [*APT_LANG_USER, *APT_NONINTERACTIVE, "apt-get", "install", "-y", "--reinstall"]
+			cmd = [*APT_LANG_USER, *APT_NONINTERACTIVE,
+          		"apt-get", "install", "-y", "--reinstall"]
 
 			if user_config['apt_install']['fix_missing']:
 				cmd.append("--fix-missing")

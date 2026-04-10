@@ -57,3 +57,14 @@ strings:
   str_control_files: "Archivos de control"
 
   str_warning_filter_active: "Filtros activos, solo se muestran elementos coincidentes"
+
+  str_tooltip_filter: "Aplicar filtros a todas las páginas"
+  str_tooltip_osname: "Sistema operativo"
+  str_tooltip_sys_arch: "Arquitectura del sistema"
+  str_tooltip_help_about: "Ayuda y Acerca de"
+  str_tooltip_view_raw_output: "Ver salida en crudo"
+  str_tooltip_editor_autocompletion: "Sugerir autocompletado para paquetes remotos (desactivar si es demasiado lento)"
+  str_tooltip_editor_upgrades_selected: "Seleccionar todas las actualizaciones por defecto al inicio del programa (desactivar si no sueles actualizar todos los paquetes)"
+  str_tooltip_apt_fix_missing: "Añade '--fix-missing' a los comandos apt install"
+  str_tooltip_apt_fix_broken: "Añade '--fix-broken' a los comandos apt install"
+  str_tooltip_apt_fix_policy: "Añade '--fix-policy' a los comandos apt install"

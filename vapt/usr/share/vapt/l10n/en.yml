@@ -57,3 +57,14 @@ strings:
   str_control_files: "Control files"
 
   str_warning_filter_active: "Active filters, only matching elements are shown"
+
+  str_tooltip_filter: "Apply filters to all tabs"
+  str_tooltip_osname: "Operating System"
+  str_tooltip_sys_arch: "System architecture"
+  str_tooltip_help_about: "Help & About"
+  str_tooltip_view_raw_output: "View raw output"
+  str_tooltip_editor_autocompletion: "Hints autocompletion for remote packages (deactivate if it is too slow)"
+  str_tooltip_editor_upgrades_selected: "All upgrades selected by default at the program startup (deactivate if you do not usually upgrade everything)"
+  str_tooltip_apt_fix_missing: "Appends '--fix-missing' to apt install commands"
+  str_tooltip_apt_fix_broken: "Appends '--fix-broken' to apt install commands"
+  str_tooltip_apt_fix_policy: "Appends '--fix-policy' to apt install commands"
