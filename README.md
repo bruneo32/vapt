@@ -25,7 +25,13 @@ VAPT is a **simple**, but **powerful** package **manager** GUI for
 ![scr_localpkg](_media/scr_localpkg.png)
 ![scr_upgrade](_media/scr_upgrade.png)
 
-# Roadmap
+## Installation
+Download the latest version from [releases](https://github.com/bruneo32/vapt/releases), and install it.
+```sh
+sudo apt install ./vapt_1.2-4_all.deb
+```
+
+## Roadmap
 > Missing features? [Open an issue](https://github.com/bruneo32/vapt/issues) suggesting them.
 - *Planned*
   - Refactor into python modules
@@ -33,15 +39,7 @@ VAPT is a **simple**, but **powerful** package **manager** GUI for
   - apt-mark support
   - Manage multiarch settings
 
-# Development
-
-## Installation
-Download the latest version from [releases](https://github.com/bruneo32/vapt/releases), and install it.
-```sh
-sudo apt install ./vapt_1.2-4_all.deb
-```
-
-## Build
+## Development
 There is no building process because it's just *python*, but you can wrap up the package.
 ```sh
 make package
@@ -53,7 +51,7 @@ For one-shot testing:
 make test
 ```
 
-# Licenses
+## Licenses
 - Logo derived from: https://www.debian.org/logos/
 - Gartoon Redux Action: https://www.iconarchive.com/show/gartoon-action-icons-by-gartoon-team.html
 - Gartoon Redux Categories: https://www.iconarchive.com/show/gartoon-categories-icons-by-gartoon-team.html
