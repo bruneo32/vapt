@@ -12,16 +12,18 @@ VAPT is a **simple**, but **powerful** package **manager** GUI for
 [![License](https://img.shields.io/github/license/bruneo32/vapt)](LICENSE)
 [![Commits](https://img.shields.io/github/commit-activity/m/bruneo32/vapt)](https://github.com/bruneo32/vapt/commits/main)
 
-| Feature | Description                                        |
-|---------|----------------------------------------------------|
-| Install | Install **remote** or **local** packages easily    |
-| Search  | **Find** packages by name or description           |
-| Upgrade | **Automatically** or **manually** upgrade packages |
-| Remove  | **List** and **remove** any package installed      |
-| Details | Read package **details** and **contents**          |
+| Feature      | Description                                        |
+|--------------|----------------------------------------------------|
+| Install      | Install **remote** or **local** packages easily    |
+| Search       | **Find** packages by name or description           |
+| Upgrade      | **Automatically** or **manually** upgrade packages |
+| Remove       | **List** and **remove** any package installed      |
+| Details      | Read package **details** and **contents**          |
+| Localization | Use the program in your native **language**        |
 
 ![scr_about](_media/scr_about.png)
 ![scr_localpkg](_media/scr_localpkg.png)
+![scr_upgrade](_media/scr_upgrade.png)
 
 # Roadmap
 > Missing features? [Open an issue](https://github.com/bruneo32/vapt/issues) suggesting them.
